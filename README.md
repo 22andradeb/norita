@@ -1,165 +1,185 @@
 # Norita
 
-Caregiver check-ins for older adults, with a family dashboard that flags changes from a person's usual pattern.
-One Expo app with two experiences: **caregiver** and **family**, chosen at sign-up.
+App de cuidados para personas mayores: los cuidadores registran cada visita y la familia sigue su
+evolución con análisis, avisos y notificaciones. Una sola app de Expo con dos experiencias,
+**cuidador/a** y **familiar**, que se elige al crear la cuenta.
 
-## Stack
+## Tecnología
 
 - Expo (React Native) + TypeScript, Expo Router
-- Supabase (Postgres, auth, row-level security; edge functions later)
-- EAS Build / Submit for the App Store and Google Play
+- Supabase (Postgres, autenticación, seguridad por filas, almacenamiento, funciones edge, pg_cron)
+- API de Claude para transcribir documentos médicos
+- EAS Build / Submit para App Store y Google Play
 
-## First-time setup
+## Puesta en marcha
 
-1. Install Node.js LTS from https://nodejs.org
-2. Install dependencies and align them with the Expo SDK:
+1. Instala Node.js LTS desde https://nodejs.org
+2. Instala las dependencias y ajústalas a la versión del SDK de Expo:
    ```bash
    npm install && npx expo install --fix
    ```
-3. Create a Supabase project, then copy `.env.example` to `.env` and fill in the URL and anon key.
-4. Apply the database migrations in filename order: paste each `supabase/migrations/*.sql` into the Supabase SQL editor,
-   or use the Supabase CLI (`npx supabase init`, `npx supabase link`, then `npx supabase db push`).
-5. Run the app:
+3. Crea un proyecto en Supabase, copia `.env.example` a `.env` y rellena la URL y la clave anon.
+4. Aplica las migraciones de la base de datos **en orden por nombre de archivo**: pega cada
+   `supabase/migrations/*.sql` en el SQL Editor de Supabase, o usa la CLI de Supabase
+   (`npx supabase init`, `npx supabase link` y `npx supabase db push`).
+5. Arranca la app:
    ```bash
    npx expo start
    ```
-   Scan the QR code with Expo Go on your phone.
+   Escanea el código QR con Expo Go en el móvil.
 
-## How the app is organised
+## Organización de la app
 
-`app/_layout.tsx` gates every area with `Stack.Protected`: signed-out users see `app/(auth)/`,
-users who haven't accepted the current consent see `app/consent.tsx`, everyone else gets the tabs.
+`app/_layout.tsx` protege cada zona con `Stack.Protected`: sin sesión se ve `app/(auth)/`; sin haber
+aceptado el consentimiento vigente, `app/consent.tsx`; el resto de usuarios accede a las pestañas.
+Las pestañas cambian según el rol de la cuenta (`app/home/_layout.tsx`).
 
-| Tab | What's on it |
+**Cuidador/a**
+
+| Pestaña | Contenido |
 | --- | --- |
-| Hoy (`app/home/index.tsx`) | Week strip, wellbeing score ring, medication / fluid / meal rings, next dose, top warnings, vital-sign widgets, streaks, day log |
-| Medicación (`app/home/meds.tsx`) | Today's dose checklist (one tap to log), as-needed meds, stock and low-stock warnings |
-| Análisis (`app/home/trends.tsx`) | All warnings, period summary, four streaks, logging-coverage calendar, medication adherence, wellbeing, time in range and charts per vital sign, fluids, meals, sleep, what was logged and when |
-| Equipo (`app/home/team.tsx`) | Care team, invite codes, fluid goal, account |
+| Hoy (`app/home/index.tsx`) | Semana, visita (botones «He llegado» / «Me voy»), próxima cita, WHO-5 y FRAIL, anillos de medicación / líquidos / comidas, próxima toma, avisos, constantes vitales, rachas y registro del día |
+| Medicación (`app/home/meds.tsx`) | Lista de tomas del día (un toque para registrar), medicación «si lo necesita», existencias y avisos de pocas existencias |
+| Citas (`app/home/citas.tsx`) | Citas médicas: añadir, editar y cancelar |
+| Historial (`app/home/historial.tsx`) | Día a día y exámenes médicos |
+| Equipo (`app/home/team.tsx`) | Equipo de cuidados, códigos de invitación, objetivo de líquidos, notificaciones y cuenta |
 
-Those are the caregiver tabs. Family accounts get a different, analysis-first set (same route files,
-switched on the account's role in `app/home/_layout.tsx`; screens in `components/family/`):
+El análisis completo (`app/home/trends.tsx`) se abre desde los enlaces de Hoy e Historial. El botón
+«+» abre la hoja de registro (`app/log/index.tsx`).
 
-| Tab | What's on it |
+**Familiar** (pantallas en `components/family/`, cálculos en `lib/family.ts`)
+
+| Pestaña | Contenido |
 | --- | --- |
-| Hoy | Person card, overall status, next appointment, today's caregiver visit (arrival / departure), today at a glance, warnings, what happened today |
-| Salud | Three sections: vital signs (reference bands, average / min / max / % in range, change vs previous period), medication (adherence, punctuality, stock days left), wellbeing (comparison with previous period, mood, confusion, fluids, meals, sleep) |
-| Citas | Appointments — the whole care team, family included, can add, edit and cancel |
-| Historial | Logging-coverage calendar, streaks, and a collapsible day-by-day history (empty days shown) |
-| Equipo | Same as for caregivers |
+| Hoy | Persona, estado general, próxima cita, visita del cuidador, WHO-5 y FRAIL, el día de un vistazo, avisos y lo que pasó en el día |
+| Salud | Tres apartados: signos vitales (franja de referencia, media / mín. / máx. / % en rango, cambio frente al periodo anterior), medicación (adherencia, puntualidad, días de existencias) y bienestar (WHO-5, FRAIL, ánimo, confusión, líquidos, comidas, sueño) |
+| Citas | Igual que para cuidadores: toda la familia puede añadir, editar y cancelar |
+| Historial | Calendario de días con cuidados, rachas, historial día a día desplegable y exámenes |
+| Equipo | Igual que para cuidadores |
 
-Caregivers also get the Citas tab, and "He llegado" / "Me voy" buttons on Hoy that family sees as the visit.
-Calculations for these live in `lib/family.ts`.
+La persona que se está viendo se elige arriba de cada pestaña (`app/people.tsx`) y se recuerda por
+usuario (`lib/person.tsx`). Al tocar una constante vital se abre `app/metric/[key].tsx`.
 
-Caregivers get a "+" button that opens the log sheet (`app/log/index.tsx`). The person being viewed is chosen at the top of each tab (`app/people.tsx`)
-and remembered per user (`lib/person.tsx`). Tapping a vital widget opens `app/metric/[key].tsx`.
+La interfaz está en español de España; fechas y números se formatean en `lib/format.ts`, que también
+traduce los mensajes de error del servidor. Los avisos calculados en la app y las rachas están en
+`lib/insights.ts`.
 
-The UI is in Spanish (Spain); dates and numbers are formatted in `lib/format.ts`, which also translates
-server error messages. Warnings and streaks are computed in `lib/insights.ts`.
+Los colores de estado de las constantes vitales usan rangos de referencia generales para adultos
+(`lib/vitals.ts`). Debe revisarlos un profesional sanitario y no son un diagnóstico.
 
-Vital-sign status colours come from general adult reference ranges in `lib/vitals.ts`; they should be
-reviewed with a clinician and are not a diagnosis.
+## Qué se puede registrar
 
-## What caregivers can log
+Revisión de la visita, constantes vitales (tensión, pulso, temperatura, SpO₂, respiración, glucosa,
+peso, dolor), comidas y bebidas, medicación (tomas dadas / rechazadas / olvidadas y existencias),
+sueño, baño, higiene, actividad, conducta, piel, caídas, citas, notas, llegada y salida del cuidador,
+valoraciones WHO-5 y FRAIL y exámenes médicos.
 
-Visit check-ins, vital signs (blood pressure, heart rate, temperature, SpO₂, breathing rate, blood
-sugar, weight, pain), food and drink, medications (doses given/refused/missed and stock with
-low-stock warnings), sleep, toileting, personal care, activity, behaviour, skin, falls,
-appointments and free notes.
+Cada tipo de registro se define una sola vez en `lib/logKinds.ts`, que genera tanto el formulario como
+su descripción en el historial. Los registros se guardan primero en el móvil (`lib/outbox.ts`) y se
+sincronizan cuando hay conexión; si el servidor rechaza alguno, se puede reintentar.
 
-Each kind is defined once in `lib/logKinds.ts`, which drives both the entry form and the timeline.
-Entries are saved on the phone first (`lib/outbox.ts`) and synced when there's a connection.
+Las personas se vinculan con códigos de invitación de un solo uso (8 caracteres, válidos 7 días): un
+cuidador lo crea en Equipo y lo comparte; el familiar lo introduce en «Unirse con un código».
 
-People are linked with single-use invite codes (8 characters, valid 7 days): a caregiver creates
-one on the person's page and shares it; a family member enters it under "Join with a code".
+## Exámenes médicos
 
-## Medical documents (exams)
+Cualquier miembro del equipo puede subir una foto o un PDF de un documento médico (Historial →
+Exámenes, o «Examen médico» en el «+» del cuidador). Los archivos se guardan en el almacenamiento
+privado `medical-documents`; la función `transcribe-document` los envía a Claude (`claude-opus-5-5`,
+salida estructurada, reintento automático con otro modelo si hay un rechazo) y guarda el resumen, la
+transcripción y cada resultado con su rango de referencia y si está fuera de rango. Los datos
+identificativos del paciente se sustituyen por `[omitido]` en la transcripción.
 
-Anyone on the care team can upload a photo or PDF of a medical document (Historial → Exámenes,
-or "Examen médico" in the caregiver's "+" sheet). Files go to the private `medical-documents`
-storage bucket; the `transcribe-document` edge function sends them to Claude (`claude-opus-5-5`,
-structured outputs, server-side refusal fallback enabled) and saves the summary, transcript and
-each result with its reference range and out-of-range flag. Patient identifiers are replaced by
-`[omitido]` in the transcript.
-
-Deploy the function once (Supabase CLI):
+Despliegue de la función (una vez, con la CLI de Supabase):
 
 ```bash
-npx supabase init            # only if supabase/config.toml doesn't exist yet
-npx supabase link --project-ref <your-project-ref>
-npx supabase secrets set ANTHROPIC_API_KEY=<your key>
+npx supabase init            # solo si aún no existe supabase/config.toml
+npx supabase link --project-ref <ref-del-proyecto>
+npx supabase secrets set ANTHROPIC_API_KEY=<tu-clave>
 npx supabase functions deploy transcribe-document
 ```
 
-This sends health documents to the Anthropic API: put a data processing agreement in place and
-get the required authorisation before using real patient documents.
+Esto envía documentos de salud a la API de Anthropic: antes de usar documentos reales de pacientes
+hace falta un acuerdo de tratamiento de datos y la autorización correspondiente.
 
-## Validated scales (WHO-5 and FRAIL)
+## Escalas validadas (WHO-5 y FRAIL)
 
-Wellbeing and frailty use validated instruments, not an app-made score (`lib/assessments.ts`,
-`supabase/migrations/*_assessments.sql`):
+El bienestar y la fragilidad se miden con instrumentos validados, no con una puntuación inventada por
+la app (`lib/assessments.ts`, `supabase/migrations/*_assessments.sql`):
 
-- **WHO-5 Well-Being Index** — official Spanish wording (OMS-5, 1998), free to use; Spanish version
-  validated in older adults. 5 items × 0–5, score × 4 → 0–100. ≤ 50 low, ≤ 28 very low; a 10-point
-  change is meaningful. Suggested every 2 weeks.
-- **FRAIL scale** (Morley 2012), Spanish wording as used in Spanish primary care — have a clinician
-  confirm it matches their service's version. 0 robust, 1–2 prefrail, 3–5 frail; Spain's 2026
-  consensus on frailty prevention treats ≥ 1 as a positive screen. Suggested monthly.
+- **Índice de Bienestar OMS-5 (WHO-5)**: texto oficial en español (versión de 1998), de uso libre;
+  versión española validada en personas mayores. 5 preguntas de 0 a 5; la suma × 4 da 0–100.
+  50 o menos es bienestar bajo y 28 o menos, muy bajo; un cambio de 10 puntos es relevante.
+  Recomendado cada 2 semanas.
+- **Escala FRAIL** (Morley 2012), redacción en español habitual en atención primaria: debe confirmar
+  un profesional que coincide con la versión de su servicio de salud. 0 robusto/a, 1–2 prefrágil,
+  3–5 frágil; el consenso del Ministerio de Sanidad sobre prevención de la fragilidad (2026)
+  considera 1 punto o más como cribado positivo. Recomendada cada mes.
 
-Anyone on the care team can run them with the person (Hoy, Salud → Bienestar, or "+"). The
-database recomputes every score, raises alerts on low/falling WHO-5 and positive/worsening FRAIL,
-and reminds the team when a scale is due. Both are screening tools, not a diagnosis.
+Cualquier miembro del equipo puede hacerlas con la persona (Hoy, Salud → Bienestar o «+»). La base de
+datos recalcula siempre la puntuación, genera avisos cuando el WHO-5 es bajo o baja y cuando el
+cribado FRAIL es positivo o empeora, y recuerda al equipo cuándo toca repetirlas. Las dos son
+herramientas de cribado, no un diagnóstico.
 
-## Notifications
+## Avisos y notificaciones
 
-Alerts are created in the database (`supabase/migrations/*_alerts.sql`): triggers on new entries
-(falls, urgent events, missed doses, vitals out of the reference range or unusual for that person
-compared with their last 30 days, confusion, little sleep, abnormal exams) and a check every 10
-minutes (nothing logged by 12:00/20:00, unlogged doses, low stock, tomorrow's appointments, and a
-morning review of yesterday's fluids, meals and check-in, bowel movements and wellbeing trend).
-Each alert is unique per situation, shown on Hoy and in Avisos, and can be marked as seen.
+Los avisos se crean en la base de datos (`supabase/migrations/*_alerts.sql`):
 
-The `send-alerts` edge function pushes pending alerts to the care team (except whoever logged the
-entry), respecting each user's preference (Equipo → Notificaciones). pg_cron calls it every
-minute; the app also calls it right after syncing entries that can raise alerts.
+- **Al registrar algo**: caídas, avisos urgentes, tomas olvidadas, constantes fuera del rango de
+  referencia o fuera de lo habitual en esa persona (comparando con sus últimos 30 días), confusión,
+  poco sueño, exámenes alterados y resultados de WHO-5 y FRAIL.
+- **Cada 10 minutos**: sin registros a las 12:00 / 20:00, tomas sin registrar, pocas existencias,
+  citas del día siguiente, repaso por la mañana del día anterior (líquidos, comidas, revisión,
+  deposiciones) y recordatorios de WHO-5 y FRAIL.
 
-One-time setup:
+Cada aviso aparece una sola vez por situación, se muestra en Hoy y en Avisos y se puede marcar como
+visto («Lo he visto», «Me encargo»…).
+
+La función `send-alerts` envía los avisos pendientes como notificaciones push al equipo (excepto a
+quien hizo el registro), según la preferencia de cada usuario (Equipo → Notificaciones). pg_cron la
+llama cada minuto y la app también la llama justo después de sincronizar registros que pueden generar
+avisos.
+
+Configuración (una vez):
 
 ```bash
-npx eas-cli init                                   # links an Expo project (adds extra.eas.projectId)
-openssl rand -hex 32                               # make a random secret, use it below twice
-npx supabase secrets set CRON_SECRET=<secret>
+npx eas-cli init                                   # vincula un proyecto de Expo (añade extra.eas.projectId)
+openssl rand -hex 32                               # genera un secreto aleatorio; úsalo dos veces abajo
+npx supabase secrets set CRON_SECRET=<secreto>
 npx supabase functions deploy send-alerts --no-verify-jwt
 ```
 
-Then in the Supabase SQL editor:
+Después, en el SQL Editor de Supabase:
 
 ```sql
-select vault.create_secret('https://<project-ref>.supabase.co', 'norita_project_url');
-select vault.create_secret('<secret>', 'norita_cron_secret');
+select vault.create_secret('https://<ref-del-proyecto>.supabase.co', 'norita_project_url');
+select vault.create_secret('<secreto>', 'norita_cron_secret');
 ```
 
-Push works in Expo Go on iPhone; Android needs a development build.
+Las notificaciones funcionan en Expo Go en iPhone; en Android hace falta una versión de desarrollo.
 
-## Database tests
+## Pruebas de la base de datos
 
 ```bash
 npm run test:db
 ```
 
-Applies all migrations to an in-memory Postgres and checks who can read and write what.
+Aplica todas las migraciones a un Postgres en memoria y comprueba quién puede leer y escribir qué,
+cómo se calculan las puntuaciones y qué avisos se generan.
 
-## Roadmap
+## Plan
 
-1. ~~Scaffold, auth and role-based navigation~~
-2. ~~Data model: older adults, care teams, invite codes, all care logs~~
-3. ~~Caregiver logging (offline-first), check-in streak~~
-4. ~~Dashboard redesign: tabs, rings, vital widgets, trends~~ — "next step" card for family still to do
-5. Rule-based deviation detection (edge function, rolling baseline)
-6. Internal testing (TestFlight / Play internal track)
-7. Store submission
+1. ~~Base del proyecto, autenticación y navegación por roles~~
+2. ~~Modelo de datos: personas, equipos de cuidados, invitaciones y todos los registros~~
+3. ~~Registro del cuidador (sin conexión) y rachas~~
+4. ~~Rediseño: pestañas, anillos, constantes vitales, análisis, parte de familiar~~
+5. ~~Avisos automáticos y notificaciones (rangos de referencia y valores habituales de cada persona)~~
+6. Pruebas internas (TestFlight / prueba interna de Google Play): borrar cuenta, política de
+   privacidad, icono, configuración de EAS
+7. Publicación en las tiendas
 
-## Before a real pilot
+## Antes de un piloto real
 
-This app handles health-related data about older adults. The consent text in `app/consent.tsx`
-is a draft: have it reviewed for GDPR compliance before any real user data is collected.
+La app trata datos de salud de personas mayores. El texto de consentimiento de `app/consent.tsx` es un
+borrador: debe revisarse para cumplir el RGPD antes de recoger datos reales. También deben revisar un
+profesional sanitario los rangos de los avisos y la redacción de la escala FRAIL.
