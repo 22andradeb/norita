@@ -2,9 +2,11 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
+import { FamilyHealth } from '@/components/family/FamilyHealth';
 import { BarChart, CoverageCalendar, HBars, Legend, LineChart } from '@/components/charts';
-import { Caption, Card, EmptyState, ErrorText, Heading, IconBadge, Loading, Screen, Segmented } from '@/components/ui';
-import { PersonHeader, StatTile, StreakTile, WarningList } from '@/components/widgets';
+import { Caption, EmptyState, ErrorText, Heading, Loading, Screen, Segmented } from '@/components/ui';
+import { ChartCard, PersonHeader, StatTile, StreakTile, WarningList } from '@/components/widgets';
+import { useAuth } from '@/lib/auth';
 import { fmtNum } from '@/lib/format';
 import { adherence, buildWarnings, categoryCounts, dailyStats, entriesByHour, streaks, timeInRange } from '@/lib/insights';
 import { LOG_STYLE } from '@/lib/logStyle';
@@ -13,12 +15,17 @@ import { usePerson } from '@/lib/person';
 import { addDays, mean } from '@/lib/stats';
 import { accents, useTheme } from '@/lib/theme';
 import { useInsightData } from '@/lib/useInsights';
-import { METRICS, METRIC_ORDER, formatReading, readingsFor, type IconName, type Metric, type Reading } from '@/lib/vitals';
+import { METRICS, METRIC_ORDER, formatReading, readingsFor, type Metric, type Reading } from '@/lib/vitals';
 
 type Period = '7' | '30' | '90';
 
-/** Analysis for family and caregivers: warnings, streaks, logging coverage and trends. */
-export default function Analysis() {
+/** Caregivers see the full analysis; family members get the Health view instead. */
+export default function AnalysisTab() {
+  const family = useAuth().profile?.role === 'family';
+  return family ? <FamilyHealth /> : <Analysis />;
+}
+
+function Analysis() {
   const t = useTheme();
   const { person, loading: peopleLoading } = usePerson();
   const [period, setPeriod] = useState<Period>('30');
@@ -222,34 +229,6 @@ export default function Analysis() {
         Los avisos y rangos son orientativos y se basan en referencias generales. No sustituyen la valoración de un profesional sanitario.
       </Text>
     </Screen>
-  );
-}
-
-function ChartCard({
-  icon,
-  color,
-  title,
-  summary,
-  children,
-  onPress,
-}: {
-  icon: IconName;
-  color: string;
-  title: string;
-  summary: string;
-  children: React.ReactNode;
-  onPress?: () => void;
-}) {
-  const t = useTheme();
-  return (
-    <Card onPress={onPress} accessibilityLabel={`${title}, ${summary}`} style={{ gap: 12 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <IconBadge name={icon} color={color} size={34} />
-        <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: t.text }}>{title}</Text>
-        <Caption>{summary}</Caption>
-      </View>
-      {children}
-    </Card>
   );
 }
 

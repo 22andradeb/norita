@@ -2,21 +2,29 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
+import { FamilyToday } from '@/components/family/FamilyToday';
+import { NextAppointmentCard } from '@/components/appointments';
 import { ActivityList, SyncBanner } from '@/components/care';
 import { Button, Caption, Card, EmptyState, ErrorText, Fab, Heading, Loading, Screen } from '@/components/ui';
+import { VisitCard } from '@/components/VisitCard';
 import { DayHero, Grid, MetricWidget, PersonHeader, StreakTile, WarningList, WeekStrip, dayTitle } from '@/components/widgets';
 import { api, useLoad } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { buildWarnings, dailyStats, streaks } from '@/lib/insights';
 import { useOutbox } from '@/lib/outbox';
 import { usePerson } from '@/lib/person';
-import { recordDose } from '@/lib/quickLog';
+import { recordDose, recordVisit } from '@/lib/quickLog';
 import { addDays, doseSlots, isSameDay, nextDose, startOfDay, summarizeDay } from '@/lib/stats';
 import { accents, useTheme } from '@/lib/theme';
 import { useInsightData } from '@/lib/useInsights';
 import { METRICS, METRIC_ORDER, readingsFor } from '@/lib/vitals';
 
-export default function Today() {
+export default function TodayTab() {
+  const family = useAuth().profile?.role === 'family';
+  return family ? <FamilyToday /> : <Today />;
+}
+
+function Today() {
   const t = useTheme();
   const { session, profile } = useAuth();
   const { person, canLog, loading: peopleLoading } = usePerson();
@@ -27,12 +35,13 @@ export default function Today() {
 
   const { data, error } = useLoad(async () => {
     if (!pid) return null;
-    const [items, meds, vitals] = await Promise.all([
+    const [items, meds, vitals, next] = await Promise.all([
       api.activity(pid, day, addDays(day, 1)),
       api.medications(pid),
       api.vitals(pid, addDays(new Date(), -90)),
+      api.nextAppointment(pid),
     ]);
-    return { items, meds, vitals };
+    return { items, meds, vitals, next };
   }, [pid, day.getTime(), lastSyncedAt]);
   // Two weeks of history for warnings and streaks.
   const insight = useInsightData(person, 14);
@@ -85,6 +94,16 @@ export default function Today() {
       <WeekStrip selected={day} onSelect={(d) => setDay(startOfDay(d))} />
       <SyncBanner />
       <ErrorText>{error ?? insight.error}</ErrorText>
+
+      {isToday ? <NextAppointmentCard appointment={data?.next ?? null} /> : null}
+      {isToday && canLog && session ? (
+        <VisitCard
+          items={data?.items ?? []}
+          nickname={person.nickname}
+          onArrive={() => void recordVisit(session.user.id, person.id, 'arrival')}
+          onLeave={() => void recordVisit(session.user.id, person.id, 'departure')}
+        />
+      ) : null}
 
       <DayHero summary={summary} fluidGoal={person.fluid_goal_ml} onCheckIn={canLog ? () => openLog('checkin') : undefined} />
 

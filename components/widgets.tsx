@@ -25,7 +25,12 @@ export function Avatar({ name, size = 44 }: { name: string; size?: number }) {
         justifyContent: 'center',
       }}
     >
-      <Text style={{ fontSize: size * 0.42, fontWeight: '800', color: t.primary }}>{name.slice(0, 1).toUpperCase()}</Text>
+      <Text style={{ fontSize: size * 0.36, fontWeight: '800', color: t.primary }}>{name
+          .split(' ')
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((w) => w[0].toUpperCase())
+          .join('')}</Text>
     </View>
   );
 }
@@ -280,3 +285,50 @@ export function StreakTile({ label, current, best, color }: { label: string; cur
 }
 
 export const dayTitle = (d: Date) => cap(d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }));
+
+/** Card with an icon, title and one-line summary, wrapping a chart. */
+export function ChartCard({
+  icon,
+  color,
+  title,
+  summary,
+  children,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof IconBadge>['name'];
+  color: string;
+  title: string;
+  summary?: string;
+  children: React.ReactNode;
+  onPress?: () => void;
+}) {
+  const t = useTheme();
+  return (
+    <Card onPress={onPress} accessibilityLabel={summary ? `${title}, ${summary}` : title} style={{ gap: 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <IconBadge name={icon} color={color} size={34} />
+        <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: t.text }}>{title}</Text>
+        {summary ? <Caption>{summary}</Caption> : null}
+        {onPress ? <Icon name="chevron-right" color={t.muted} /> : null}
+      </View>
+      {children}
+    </Card>
+  );
+}
+
+/** "↑ 4 mmHg" style change, coloured by whether the change is good news. */
+export function Delta({ change, unit, decimals = 0, higherIsBetter }: { change: number | null; unit: string; decimals?: number; higherIsBetter?: boolean }) {
+  const t = useTheme();
+  if (change == null) return <Caption>Sin datos para comparar</Caption>;
+  const flat = Math.abs(change) < 0.5 * Math.pow(10, -decimals);
+  if (flat) return <Text style={{ fontSize: 15, fontWeight: '700', color: t.muted }}>= Sin cambios</Text>;
+  const up = change > 0;
+  const good = higherIsBetter === undefined ? null : up === higherIsBetter;
+  const color = good == null ? t.text : good ? t.success : t.warning;
+  return (
+    <Text style={{ fontSize: 15, fontWeight: '700', color }}>
+      {up ? '↑' : '↓'} {fmtNum(Math.abs(change), decimals)}
+      {unit}
+    </Text>
+  );
+}

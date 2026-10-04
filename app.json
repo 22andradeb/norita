@@ -23,7 +23,15 @@
       "expo-router",
       "expo-status-bar",
       "@react-native-community/datetimepicker",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Norita usa tus fotos para guardar los resultados de exámenes médicos.",
+          "cameraPermission": "Norita usa la cámara para fotografiar los resultados de exámenes médicos.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

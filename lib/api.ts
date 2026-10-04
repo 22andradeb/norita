@@ -33,7 +33,7 @@ export type Medication = {
 };
 
 export type ActivityItem = {
-  kind: 'check_in' | 'vitals' | 'meal' | 'care_event' | 'medication_dose' | 'stock_change';
+  kind: 'check_in' | 'vitals' | 'meal' | 'care_event' | 'medication_dose' | 'stock_change' | 'visit';
   id: string;
   older_adult_id: string;
   recorded_at: string;
@@ -48,6 +48,7 @@ export type CheckInRow = {
   mobility: number | null;
   mood: number | null;
   confusion: number | null;
+  social_contact: boolean | null;
 };
 
 export type MealRow = { recorded_at: string; meal_type: string; amount_eaten: string | null; fluids_ml: number | null };
@@ -55,7 +56,22 @@ export type SleepRow = { recorded_at: string; details: { hours?: number; quality
 export type DoseRow = { recorded_at: string; status: string; scheduled_time: string | null; medication_id: string };
 export type EventRow = { recorded_at: string; category: string; severity: string; details: Record<string, unknown> };
 export type EntryRow = { kind: ActivityItem['kind']; recorded_at: string };
-export type TeamMember ={ user_id: string; role: Role; full_name: string; joined_at: string };
+export type AppointmentKind = 'consultation' | 'tests' | 'therapy' | 'vaccine' | 'dentist' | 'other';
+export type Appointment = {
+  id: string;
+  older_adult_id: string;
+  title: string;
+  starts_at: string;
+  kind: AppointmentKind;
+  place: string | null;
+  professional: string | null;
+  needs_companion: boolean;
+  notes: string | null;
+  status: 'scheduled' | 'cancelled';
+  created_by: string | null;
+};
+export type AppointmentInput = Pick<Appointment, 'title' | 'starts_at' | 'kind' | 'place' | 'professional' | 'needs_companion' | 'notes'>;
+export type TeamMember = { user_id: string; role: Role; full_name: string; joined_at: string };
 
 const PERSON_COLUMNS = 'id, nickname, birth_year, gender, fluid_goal_ml';
 
@@ -99,6 +115,30 @@ export const api = {
         .limit(300),
     );
   },
+  /** Everything logged since `since`, newest first (for the family's care history). */
+  async recentActivity(olderAdultId: string, since: Date, limit = 100) {
+    return unwrap<ActivityItem[]>(
+      await supabase
+        .from('activity')
+        .select('*')
+        .eq('older_adult_id', olderAdultId)
+        .gte('recorded_at', since.toISOString())
+        .order('recorded_at', { ascending: false })
+        .limit(limit),
+    );
+  },
+  async lastCheckIn(olderAdultId: string) {
+    const rows = unwrap<ActivityItem[]>(
+      await supabase
+        .from('activity')
+        .select('*')
+        .eq('older_adult_id', olderAdultId)
+        .eq('kind', 'check_in')
+        .order('recorded_at', { ascending: false })
+        .limit(1),
+    );
+    return rows[0] ?? null;
+  },
   async recentAlerts(olderAdultId: string, since: Date) {
     return unwrap<ActivityItem[]>(
       await supabase
@@ -127,7 +167,7 @@ export const api = {
     return unwrap<CheckInRow[]>(
       await supabase
         .from('check_ins')
-        .select('recorded_at, appetite, mobility, mood, confusion')
+        .select('recorded_at, appetite, mobility, mood, confusion, social_contact')
         .eq('older_adult_id', olderAdultId)
         .gte('recorded_at', since.toISOString())
         .order('recorded_at', { ascending: true }),
@@ -186,6 +226,33 @@ export const api = {
         .gte('recorded_at', since.toISOString())
         .limit(10000),
     );
+  },
+  async appointments(olderAdultId: string) {
+    return unwrap<Appointment[]>(
+      await supabase.from('appointments').select('*').eq('older_adult_id', olderAdultId).order('starts_at', { ascending: true }).limit(500),
+    );
+  },
+  async appointment(id: string) {
+    return unwrap<Appointment>(await supabase.from('appointments').select('*').eq('id', id).single());
+  },
+  async nextAppointment(olderAdultId: string) {
+    const rows = unwrap<Appointment[]>(
+      await supabase
+        .from('appointments')
+        .select('*')
+        .eq('older_adult_id', olderAdultId)
+        .eq('status', 'scheduled')
+        .gte('starts_at', new Date().toISOString())
+        .order('starts_at', { ascending: true })
+        .limit(1),
+    );
+    return rows[0] ?? null;
+  },
+  async addAppointment(olderAdultId: string, userId: string, input: AppointmentInput) {
+    unwrap(await supabase.from('appointments').insert({ ...input, older_adult_id: olderAdultId, created_by: userId }));
+  },
+  async updateAppointment(id: string, changes: Partial<AppointmentInput> & { status?: Appointment['status'] }) {
+    unwrap(await supabase.from('appointments').update(changes).eq('id', id));
   },
   async team(olderAdultId: string) {
     return unwrap<TeamMember[]>(

@@ -62,6 +62,9 @@ function RootNavigator() {
           <Stack.Screen name="home" />
           <Stack.Screen name="people" options={{ ...modal, title: 'Personas' }} />
           <Stack.Screen name="join" options={{ ...modal, title: 'Unirse con un código' }} />
+          <Stack.Screen name="appointment" options={{ ...modal, title: 'Cita' }} />
+          <Stack.Screen name="exam-new" options={{ ...modal, title: 'Subir examen' }} />
+          <Stack.Screen name="exam/[id]" options={{ ...modal, presentation: 'card', title: '' }} />
           <Stack.Screen name="metric/[key]" options={{ ...modal, presentation: 'card', title: '' }} />
         </Stack.Protected>
         <Stack.Protected guard={caregiver}>

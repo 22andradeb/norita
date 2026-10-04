@@ -52,6 +52,26 @@ export default function LogSheet() {
             </Pressable>
           );
         })}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Examen médico"
+          onPress={() => router.replace('/exam-new')}
+          style={({ pressed }) => ({
+            width: '30.5%',
+            aspectRatio: 1,
+            borderRadius: radius.lg,
+            backgroundColor: t.card,
+            borderWidth: 1,
+            borderColor: t.border,
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            opacity: pressed ? 0.8 : 1,
+          })}
+        >
+          <IconBadge name="file-document-outline" color={t.primary} size={46} />
+          <Text style={{ fontSize: 14, fontWeight: '700', color: t.text, textAlign: 'center' }}>Examen médico</Text>
+        </Pressable>
       </View>
     </Screen>
   );

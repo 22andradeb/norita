@@ -7,7 +7,8 @@ import { fmtNum, fmtTime, fmtWhen, translateError } from '@/lib/format';
 import { LOG_STYLE } from '@/lib/logStyle';
 import { discardFailed, useOutbox } from '@/lib/outbox';
 import type { DoseSlot } from '@/lib/stats';
-import { useTheme } from '@/lib/theme';
+import { accents, useTheme } from '@/lib/theme';
+import type { IconName } from '@/lib/vitals';
 
 import { Body, Button, Caption, Card, Chip, IconBadge, Row, StatusPill } from './ui';
 
@@ -16,7 +17,7 @@ export { fmtTime as formatTime, fmtWhen as formatWhen } from '@/lib/format';
 const DOSE_STATUS: Record<string, string> = { given: 'Tomada', refused: 'Rechazada', missed: 'Olvidada', held: 'No dada' };
 const MEAL_NAMES: Record<string, string> = { breakfast: 'Desayuno', lunch: 'Comida', dinner: 'Cena', snack: 'Merienda' };
 
-type Described = { styleKey: LogKindKey; title: string; lines: string[]; tone?: 'warning' | 'danger' };
+type Described = { styleKey: LogKindKey; title: string; lines: string[]; tone?: 'warning' | 'danger'; style?: { icon: IconName; color: string } };
 
 function describeActivity(item: ActivityItem): Described {
   const d = item.data;
@@ -68,6 +69,15 @@ function describeActivity(item: ActivityItem): Described {
         tone: d.status === 'refused' || d.status === 'missed' ? 'warning' : undefined,
       };
     }
+    case 'visit': {
+      const arrival = d.kind === 'arrival';
+      return {
+        styleKey: 'other',
+        style: { icon: arrival ? 'door-open' : 'door-closed', color: accents.wellbeing },
+        title: arrival ? 'Llegada del cuidador' : 'Salida del cuidador',
+        lines: [],
+      };
+    }
     case 'stock_change': {
       const delta = d.delta as number;
       const verb = d.reason === 'refill' ? 'Reposición' : d.reason === 'initial' ? 'Existencias iniciales' : 'Retirado';
@@ -87,8 +97,8 @@ export function ActivityList({ items, showDate }: { items: ActivityItem[]; showD
   return (
     <Card style={{ padding: 0, gap: 0 }}>
       {items.map((item, i) => {
-        const { styleKey, title, lines, tone } = describeActivity(item);
-        const style = LOG_STYLE[styleKey];
+        const { styleKey, title, lines, tone, style: custom } = describeActivity(item);
+        const style = custom ?? LOG_STYLE[styleKey];
         const notes = item.data.notes as string | undefined;
         return (
           <View

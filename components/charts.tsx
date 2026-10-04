@@ -336,3 +336,41 @@ export function HBars({
     </View>
   );
 }
+
+/** Calendar (Monday first) where each day has its own colour, e.g. medication adherence. */
+export function DayGrid({ days }: { days: { day: Date; color: string; textColor: string; label: string }[] }) {
+  const t = useTheme();
+  const lead = (days[0].day.getDay() + 6) % 7;
+  const cells = [...Array.from({ length: lead }, () => null), ...days];
+  const rows: (typeof cells)[] = [];
+  for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+  return (
+    <View style={{ gap: 6 }}>
+      <View style={{ flexDirection: 'row', gap: 6 }}>
+        {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((w) => (
+          <Text key={w} style={{ flex: 1, textAlign: 'center', fontSize: 12, color: t.muted }}>
+            {w}
+          </Text>
+        ))}
+      </View>
+      {rows.map((row, ri) => (
+        <View key={ri} style={{ flexDirection: 'row', gap: 6 }}>
+          {Array.from({ length: 7 }, (_, ci) => {
+            const c = row[ci];
+            if (!c) return <View key={ci} style={{ flex: 1, aspectRatio: 1 }} />;
+            return (
+              <View
+                key={ci}
+                accessible
+                accessibilityLabel={`${c.day.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}: ${c.label}`}
+                style={{ flex: 1, aspectRatio: 1, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: c.color }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: c.textColor }}>{c.day.getDate()}</Text>
+              </View>
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+}

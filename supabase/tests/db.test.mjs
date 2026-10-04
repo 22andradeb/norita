@@ -14,6 +14,14 @@ await db.exec(`
   create role anon nologin;
   create role authenticated nologin;
   create schema auth;
+  create schema storage;
+  create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+  create table storage.objects (bucket_id text, name text, owner uuid);
+  alter table storage.objects enable row level security;
+  grant usage on schema storage to anon, authenticated;
+  grant select, insert on storage.objects to authenticated;
+  create function storage.foldername(name text) returns text[] language sql immutable
+    as $$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $$;
   create table auth.users (id uuid primary key, raw_user_meta_data jsonb);
   create function auth.uid() returns uuid language sql stable
     as $$ select nullif(current_setting('test.uid', true), '')::uuid $$;
@@ -128,6 +136,35 @@ ok('caregiver can change fluid goal', (await as(C, `update older_adults set flui
 const team = (await as(F, `select full_name, role from team_members where older_adult_id = $1 order by full_name`, [oa])).rows;
 ok('family sees care team with names', JSON.stringify(team.map((r) => r.full_name)) === JSON.stringify(['Carla', 'Fam']), team);
 ok('outsider sees no team', (await as(O, `select * from team_members`)).rows.length === 0);
+
+console.log('appointments & visits');
+const appt = (await as(F, `insert into appointments (older_adult_id, title, starts_at, created_by, needs_companion) values ($1, 'Control de tensión', now() + interval '5 days', $2, true) returning id`, [oa, F])).rows[0].id;
+ok('family can add an appointment', !!appt);
+ok('caregiver sees it', (await as(C, `select * from appointments where id = $1`, [appt])).rows.length === 1);
+ok('caregiver can cancel it', (await as(C, `update appointments set status = 'cancelled' where id = $1 returning updated_at`, [appt])).rows.length === 1);
+ok('outsider cannot see it', (await as(O, `select * from appointments`)).rows.length === 0);
+ok('outsider cannot add one', !!(await fails(O, `insert into appointments (older_adult_id, title, starts_at, created_by) values ($1, 'x', now(), $2)`, [oa, O])));
+ok('appointments cannot be deleted', !!(await fails(F, `delete from appointments where id = $1`, [appt])));
+await ins(C, 'visit_events', { ...base(), kind: 'arrival' });
+ok('family cannot log a visit', !!(await ins(F, 'visit_events', { ...base(), recorded_by: F, kind: 'arrival' }).then(() => null, (e) => e.message)));
+const visitRows = (await as(F, `select data->>'kind' k, recorded_by_name from activity where kind = 'visit'`)).rows;
+ok('visits appear in the timeline with the caregiver name', visitRows.length === 1 && visitRows[0].k === 'arrival' && visitRows[0].recorded_by_name === 'Carla', visitRows);
+
+console.log('medical documents');
+const docId = randomUUID();
+await as(F, `insert into medical_documents (id, older_adult_id, uploaded_by, storage_path, mime_type) values ($1, $2, $3, $4, 'application/pdf')`, [docId, oa, F, `${oa}/${docId}.pdf`]);
+ok('family can upload a document', (await as(C, `select status from medical_documents where id = $1`, [docId])).rows[0]?.status === 'processing');
+ok('caregiver can upload a document', !!(await as(C, `insert into medical_documents (id, older_adult_id, uploaded_by, storage_path, mime_type) values ($1, $2, $3, $4, 'image/jpeg') returning id`, [randomUUID(), oa, C, `${oa}/x.jpg`])).rows.length);
+ok('path must be inside the person folder', !!(await fails(F, `insert into medical_documents (id, older_adult_id, uploaded_by, storage_path, mime_type) values ($1, $2, $3, 'other/x.pdf', 'application/pdf')`, [randomUUID(), oa, F])));
+ok('users cannot fake transcription results', !!(await fails(F, `update medical_documents set status = 'ready', results = '[]' where id = $1`, [docId])));
+ok('users can correct the title', (await as(F, `update medical_documents set title = 'Análisis de sangre' where id = $1 returning id`, [docId])).rows.length === 1);
+ok('outsider cannot see documents', (await as(O, `select * from medical_documents`)).rows.length === 0);
+ok('outsider cannot upload for the person', !!(await fails(O, `insert into medical_documents (id, older_adult_id, uploaded_by, storage_path, mime_type) values ($1, $2, $3, $4, 'application/pdf')`, [randomUUID(), oa, O, `${oa}/y.pdf`])));
+await as(F, `insert into storage.objects (bucket_id, name) values ('medical-documents', $1)`, [`${oa}/${docId}.pdf`]);
+ok('team member can store the file', (await as(C, `select * from storage.objects where name = $1`, [`${oa}/${docId}.pdf`])).rows.length === 1);
+ok('outsider cannot read the file', (await as(O, `select * from storage.objects`)).rows.length === 0);
+ok('outsider cannot store files in the person folder', !!(await fails(O, `insert into storage.objects (bucket_id, name) values ('medical-documents', $1)`, [`${oa}/z.pdf`])));
+ok('malformed paths are denied, not errors', !!(await fails(F, `insert into storage.objects (bucket_id, name) values ('medical-documents', 'not-a-uuid/z.pdf')`)));
 
 console.log('protections');
 ok('cannot change own role', !!(await fails(C, `update profiles set role = 'family' where id = $1`, [C])));

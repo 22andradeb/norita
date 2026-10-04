@@ -22,3 +22,13 @@ export async function recordDose(
   );
   await enqueue(userId, writes);
 }
+
+/** "He llegado" / "Me voy" — the caregiver's visit, shown to family on their Today screen. */
+export async function recordVisit(userId: string, olderAdultId: string, kind: 'arrival' | 'departure') {
+  await enqueue(userId, [
+    {
+      table: 'visit_events',
+      row: { id: newId(), older_adult_id: olderAdultId, recorded_by: userId, recorded_at: new Date().toISOString(), kind },
+    },
+  ]);
+}
