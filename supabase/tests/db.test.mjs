@@ -119,6 +119,16 @@ ok('outsider reads no medications', (await as(O, `select * from medications`)).r
 ok('family sees caregiver profile', (await as(F, `select * from profiles where id = $1`, [C])).rows.length === 1);
 ok('outsider cannot see caregiver profile', (await as(O, `select * from profiles where id = $1`, [C])).rows.length === 0);
 
+console.log('dashboard support');
+await ins(C, 'medication_doses', { ...base(), medication_id: med, status: 'given', scheduled_time: '08:00' });
+ok('dose stores its scheduled slot', (await as(F, `select data->>'scheduled_time' t from activity where kind = 'medication_dose' and data ? 'scheduled_time' and data->>'scheduled_time' is not null`)).rows[0]?.t === '08:00');
+ok('bad slot rejected', !!(await ins(C, 'medication_doses', { ...base(), medication_id: med, status: 'given', scheduled_time: '8am' }).then(() => null, (e) => e.message)));
+ok('fluid goal defaults to 1500', (await as(F, `select fluid_goal_ml from older_adults`)).rows[0].fluid_goal_ml === 1500);
+ok('caregiver can change fluid goal', (await as(C, `update older_adults set fluid_goal_ml = 2000 returning id`)).rows.length === 1);
+const team = (await as(F, `select full_name, role from team_members where older_adult_id = $1 order by full_name`, [oa])).rows;
+ok('family sees care team with names', JSON.stringify(team.map((r) => r.full_name)) === JSON.stringify(['Carla', 'Fam']), team);
+ok('outsider sees no team', (await as(O, `select * from team_members`)).rows.length === 0);
+
 console.log('protections');
 ok('cannot change own role', !!(await fails(C, `update profiles set role = 'family' where id = $1`, [C])));
 ok('can record consent', (await as(C, `update profiles set consented_at = now(), consent_version = 'x' where id = $1 returning id`, [C])).rows.length === 1);

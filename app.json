@@ -8,14 +8,22 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.norita.app",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "es",
+        "CFBundleLocalizations": [
+          "es"
+        ]
+      }
     },
     "android": {
       "package": "com.norita.app"
     },
     "plugins": [
       "expo-router",
-      "expo-status-bar"
+      "expo-status-bar",
+      "@react-native-community/datetimepicker",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

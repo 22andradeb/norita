@@ -2,9 +2,39 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { Body, Button, ErrorText, Field, Screen, Title } from '@/components/ui';
+import { Body, Button, Caption, Card, ErrorText, Field, IconBadge, Screen, Title } from '@/components/ui';
 import type { Role } from '@/lib/auth';
+import { translateError } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
+import { useTheme } from '@/lib/theme';
+import type { IconName } from '@/lib/vitals';
+
+function RoleCard({
+  icon,
+  title,
+  caption,
+  selected,
+  onPress,
+}: {
+  icon: IconName;
+  title: string;
+  caption: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const t = useTheme();
+  return (
+    <Card
+      onPress={onPress}
+      accessibilityLabel={`${title}${selected ? ', selected' : ''}`}
+      style={[{ flex: 1, alignItems: 'center', gap: 6 }, selected && { borderColor: t.primary, borderWidth: 2, backgroundColor: t.primarySoft }]}
+    >
+      <IconBadge name={icon} color={t.primary} size={48} />
+      <Body style={{ fontWeight: '700' }}>{title}</Body>
+      <Caption style={{ textAlign: 'center' }}>{caption}</Caption>
+    </Card>
+  );
+}
 
 export default function SignUp() {
   const [role, setRole] = useState<Role | null>(null);
@@ -17,9 +47,9 @@ export default function SignUp() {
 
   async function onSubmit() {
     setError(null);
-    if (!role) return setError('Choose whether you are a caregiver or a family member.');
-    if (!fullName.trim()) return setError('Enter your name.');
-    if (password.length < 8) return setError('Use a password of at least 8 characters.');
+    if (!role) return setError('Elige si eres cuidador/a o familiar.');
+    if (!fullName.trim()) return setError('Escribe tu nombre.');
+    if (password.length < 8) return setError('Usa una contraseña de al menos 8 caracteres.');
 
     setSubmitting(true);
     // role and full_name are read once by the handle_new_user trigger to create the profile row.
@@ -30,26 +60,34 @@ export default function SignUp() {
     });
     setSubmitting(false);
 
-    if (error) return setError(error.message);
+    if (error) return setError(translateError(error.message));
     // With email confirmation on, there's no session until the user clicks the link.
-    if (!data.session) setNotice('Check your email to confirm your account, then sign in.');
+    if (!data.session) setNotice('Revisa tu correo para confirmar la cuenta y después inicia sesión.');
   }
 
   return (
     <Screen>
-      <Title>Create an account</Title>
-      <Body>I am a…</Body>
+      <Title>Crear cuenta</Title>
+      <Body>Soy…</Body>
       <View style={{ flexDirection: 'row', gap: 12 }}>
-        <View style={{ flex: 1 }}>
-          <Button title="Caregiver" variant="secondary" selected={role === 'caregiver'} onPress={() => setRole('caregiver')} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Button title="Family member" variant="secondary" selected={role === 'family'} onPress={() => setRole('family')} />
-        </View>
+        <RoleCard
+          icon="hand-heart-outline"
+          title="Cuidador/a"
+          caption="Registro visitas y cuidados"
+          selected={role === 'caregiver'}
+          onPress={() => setRole('caregiver')}
+        />
+        <RoleCard
+          icon="account-heart-outline"
+          title="Familiar"
+          caption="Sigo a un ser querido"
+          selected={role === 'family'}
+          onPress={() => setRole('family')}
+        />
       </View>
-      <Field label="Your name" value={fullName} onChangeText={setFullName} autoComplete="name" textContentType="name" />
+      <Field label="Tu nombre" value={fullName} onChangeText={setFullName} autoComplete="name" textContentType="name" />
       <Field
-        label="Email"
+        label="Correo electrónico"
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
@@ -58,7 +96,7 @@ export default function SignUp() {
         textContentType="emailAddress"
       />
       <Field
-        label="Password"
+        label="Contraseña"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
@@ -67,8 +105,8 @@ export default function SignUp() {
       />
       <ErrorText>{error}</ErrorText>
       {notice ? <Body>{notice}</Body> : null}
-      <Button title="Create account" onPress={onSubmit} loading={submitting} />
-      <Button title="I already have an account" variant="secondary" onPress={() => router.back()} />
+      <Button title="Crear cuenta" onPress={onSubmit} loading={submitting} />
+      <Button title="Ya tengo cuenta" variant="secondary" onPress={() => router.back()} />
     </Screen>
   );
 }

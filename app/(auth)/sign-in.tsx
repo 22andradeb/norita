@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 
 import { Body, Button, ErrorText, Field, Screen, Title } from '@/components/ui';
+import { translateError } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 
 export default function SignIn() {
@@ -16,15 +17,15 @@ export default function SignIn() {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setSubmitting(false);
     // On success the root layout's guards move the user to the right area automatically.
-    if (error) setError(error.message);
+    if (error) setError(translateError(error.message));
   }
 
   return (
     <Screen>
       <Title>Norita</Title>
-      <Body muted>Sign in to continue.</Body>
+      <Body muted>Inicia sesión para continuar.</Body>
       <Field
-        label="Email"
+        label="Correo electrónico"
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
@@ -33,7 +34,7 @@ export default function SignIn() {
         textContentType="emailAddress"
       />
       <Field
-        label="Password"
+        label="Contraseña"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
@@ -41,8 +42,8 @@ export default function SignIn() {
         textContentType="password"
       />
       <ErrorText>{error}</ErrorText>
-      <Button title="Sign in" onPress={onSubmit} loading={submitting} />
-      <Button title="Create an account" variant="secondary" onPress={() => router.push('/sign-up')} />
+      <Button title="Iniciar sesión" onPress={onSubmit} loading={submitting} />
+      <Button title="Crear cuenta" variant="secondary" onPress={() => router.push('/sign-up')} />
     </Screen>
   );
 }

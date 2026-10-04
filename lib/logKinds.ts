@@ -18,6 +18,8 @@ export type BuildContext = {
   olderAdultId: string;
   userId: string;
   medicationId?: string;
+  /** Scheduled slot ("08:00") a dose belongs to, when logged from the Meds checklist. */
+  scheduledTime?: string;
   now: string;
   newId: () => string;
 };
@@ -36,20 +38,20 @@ export type LogKind = {
 const scale = (labels: [string, string, string, string, string]): Option[] =>
   labels.map((label, i) => ({ value: i + 1, label }));
 
-const QUALITY = scale(['Very poor', 'Poor', 'OK', 'Good', 'Very good']);
+const QUALITY = scale(['Muy mal', 'Mal', 'Regular', 'Bien', 'Muy bien']);
 
-const notes: Field = { key: 'notes', label: 'Notes', type: 'text', multiline: true, maxLength: 1000 };
+const notes: Field = { key: 'notes', label: 'Notas', type: 'text', multiline: true, maxLength: 1000 };
 
 const severity = (fallback: 'info' | 'concern' | 'urgent' = 'info'): Field => ({
   key: 'severity',
-  label: 'How concerning is this?',
+  label: '¿Cuánto preocupa?',
   type: 'choice',
   required: true,
   default: fallback,
   options: [
-    { value: 'info', label: 'Routine' },
-    { value: 'concern', label: 'Worth watching' },
-    { value: 'urgent', label: 'Urgent' },
+    { value: 'info', label: 'Rutina' },
+    { value: 'concern', label: 'Vigilar' },
+    { value: 'urgent', label: 'Urgente' },
   ],
 });
 
@@ -69,30 +71,30 @@ const fieldKeys = (fields: Field[]) => fields.map((f) => f.key);
 // --- Visit check-in ---------------------------------------------------------
 
 const checkInFields: Field[] = [
-  { key: 'appetite', label: 'Appetite', type: 'choice', options: QUALITY },
-  { key: 'mobility', label: 'Mobility', type: 'choice', options: QUALITY },
-  { key: 'mood', label: 'Mood', type: 'choice', options: QUALITY },
+  { key: 'appetite', label: 'Apetito', type: 'choice', options: QUALITY },
+  { key: 'mobility', label: 'Movilidad', type: 'choice', options: QUALITY },
+  { key: 'mood', label: 'Ánimo', type: 'choice', options: QUALITY },
   {
     key: 'confusion',
-    label: 'Confusion',
+    label: 'Confusión',
     type: 'choice',
     options: [
-      { value: 0, label: 'None' },
-      { value: 1, label: 'Mild' },
-      { value: 2, label: 'Moderate' },
-      { value: 3, label: 'Severe' },
+      { value: 0, label: 'Ninguna' },
+      { value: 1, label: 'Leve' },
+      { value: 2, label: 'Moderada' },
+      { value: 3, label: 'Grave' },
     ],
   },
-  { key: 'social_contact', label: 'Social contact today', type: 'bool' },
+  { key: 'social_contact', label: 'Contacto social hoy', type: 'bool' },
   {
     key: 'medications',
-    label: 'Medications',
+    label: 'Medicación',
     type: 'choice',
     options: [
-      { value: 'all_taken', label: 'All taken' },
-      { value: 'some_missed', label: 'Some missed' },
-      { value: 'none_taken', label: 'None taken' },
-      { value: 'not_applicable', label: 'Not applicable' },
+      { value: 'all_taken', label: 'Toda tomada' },
+      { value: 'some_missed', label: 'Faltó alguna' },
+      { value: 'none_taken', label: 'Ninguna tomada' },
+      { value: 'not_applicable', label: 'No aplica' },
     ],
   },
   notes,
@@ -101,17 +103,17 @@ const checkInFields: Field[] = [
 // --- Vital signs ------------------------------------------------------------
 
 const vitalFields: Field[] = [
-  { key: 'systolic', label: 'Blood pressure — systolic (top)', type: 'number', unit: 'mmHg', min: 50, max: 260 },
-  { key: 'diastolic', label: 'Blood pressure — diastolic (bottom)', type: 'number', unit: 'mmHg', min: 30, max: 160 },
-  { key: 'heart_rate', label: 'Heart rate', type: 'number', unit: 'bpm', min: 20, max: 250 },
-  { key: 'temperature_c', label: 'Temperature', type: 'number', unit: '°C', min: 30, max: 45, decimals: true },
-  { key: 'spo2', label: 'Oxygen saturation (SpO₂)', type: 'number', unit: '%', min: 50, max: 100 },
-  { key: 'respiratory_rate', label: 'Breathing rate', type: 'number', unit: '/min', min: 4, max: 60 },
-  { key: 'blood_glucose_mg_dl', label: 'Blood sugar', type: 'number', unit: 'mg/dL', min: 20, max: 800 },
-  { key: 'weight_kg', label: 'Weight', type: 'number', unit: 'kg', min: 20, max: 300, decimals: true },
+  { key: 'systolic', label: 'Tensión — sistólica (alta)', type: 'number', unit: 'mmHg', min: 50, max: 260 },
+  { key: 'diastolic', label: 'Tensión — diastólica (baja)', type: 'number', unit: 'mmHg', min: 30, max: 160 },
+  { key: 'heart_rate', label: 'Frecuencia cardiaca', type: 'number', unit: 'lpm', min: 20, max: 250 },
+  { key: 'temperature_c', label: 'Temperatura', type: 'number', unit: '°C', min: 30, max: 45, decimals: true },
+  { key: 'spo2', label: 'Saturación de oxígeno (SpO₂)', type: 'number', unit: '%', min: 50, max: 100 },
+  { key: 'respiratory_rate', label: 'Frecuencia respiratoria', type: 'number', unit: 'rpm', min: 4, max: 60 },
+  { key: 'blood_glucose_mg_dl', label: 'Glucosa', type: 'number', unit: 'mg/dL', min: 20, max: 800 },
+  { key: 'weight_kg', label: 'Peso', type: 'number', unit: 'kg', min: 20, max: 300, decimals: true },
   {
     key: 'pain_score',
-    label: 'Pain (0 = none, 10 = worst)',
+    label: 'Dolor (0 = nada, 10 = máximo)',
     type: 'choice',
     options: Array.from({ length: 11 }, (_, i) => ({ value: i, label: String(i) })),
   },
@@ -125,31 +127,42 @@ const VITAL_KEYS = vitalFields.filter((f) => f.key !== 'notes').map((f) => f.key
 const mealFields: Field[] = [
   {
     key: 'meal_type',
-    label: 'Meal',
+    label: 'Comida',
     type: 'choice',
     required: true,
     options: [
-      { value: 'breakfast', label: 'Breakfast' },
-      { value: 'lunch', label: 'Lunch' },
-      { value: 'dinner', label: 'Dinner' },
-      { value: 'snack', label: 'Snack' },
-      { value: 'drink', label: 'Drink only' },
+      { value: 'breakfast', label: 'Desayuno' },
+      { value: 'lunch', label: 'Comida' },
+      { value: 'dinner', label: 'Cena' },
+      { value: 'snack', label: 'Merienda' },
     ],
   },
   {
     key: 'amount_eaten',
-    label: 'How much was eaten',
+    label: 'Cuánto ha comido',
     type: 'choice',
     options: [
-      { value: 'none', label: 'None' },
-      { value: 'little', label: 'A little' },
-      { value: 'half', label: 'About half' },
-      { value: 'most', label: 'Most' },
-      { value: 'all', label: 'All' },
+      { value: 'none', label: 'Nada' },
+      { value: 'little', label: 'Un poco' },
+      { value: 'half', label: 'La mitad' },
+      { value: 'most', label: 'Casi todo' },
+      { value: 'all', label: 'Todo' },
     ],
   },
-  { key: 'fluids_ml', label: 'Fluids drunk', type: 'number', unit: 'ml', min: 0, max: 5000 },
-  { key: 'description', label: 'What was served', type: 'text', maxLength: 300 },
+  { key: 'fluids_ml', label: 'Líquidos bebidos', type: 'number', unit: 'ml', min: 0, max: 5000 },
+  { key: 'description', label: 'Qué se sirvió', type: 'text', maxLength: 300 },
+  notes,
+];
+
+const drinkFields: Field[] = [
+  {
+    key: 'fluids_ml',
+    label: 'Cantidad',
+    type: 'choice',
+    required: true,
+    options: [100, 150, 200, 250, 300, 500].map((ml) => ({ value: ml, label: `${ml} ml` })),
+  },
+  { key: 'description', label: 'Qué ha bebido', type: 'text', maxLength: 300 },
   notes,
 ];
 
@@ -159,175 +172,175 @@ const yesNo = (key: string, label: string): Field => ({ key, label, type: 'bool'
 
 export const EVENT_CATEGORIES = {
   sleep: {
-    title: 'Sleep',
+    title: 'Sueño',
     fields: [
-      { key: 'hours', label: 'Hours slept', type: 'number', unit: 'h', min: 0, max: 24, decimals: true },
-      { key: 'quality', label: 'Sleep quality', type: 'choice', options: QUALITY },
-      { key: 'night_wakings', label: 'Times woken in the night', type: 'number', min: 0, max: 30 },
-      yesNo('daytime_napping', 'Napped during the day'),
+      { key: 'hours', label: 'Horas dormidas', type: 'number', unit: 'h', min: 0, max: 24, decimals: true },
+      { key: 'quality', label: 'Calidad del sueño', type: 'choice', options: QUALITY },
+      { key: 'night_wakings', label: 'Veces que se despertó', type: 'number', min: 0, max: 30 },
+      yesNo('daytime_napping', 'Siesta durante el día'),
     ],
   },
   toileting: {
-    title: 'Toileting',
+    title: 'Baño y continencia',
     fields: [
       {
         key: 'type',
-        label: 'Type',
+        label: 'Tipo',
         type: 'choice',
         required: true,
         options: [
-          { value: 'urine', label: 'Urine' },
-          { value: 'bowel', label: 'Bowel movement' },
-          { value: 'both', label: 'Both' },
+          { value: 'urine', label: 'Orina' },
+          { value: 'bowel', label: 'Deposición' },
+          { value: 'both', label: 'Ambas' },
         ],
       },
-      yesNo('continent', 'Made it to the toilet'),
-      yesNo('pad_changed', 'Pad changed'),
+      yesNo('continent', 'Llegó al baño a tiempo'),
+      yesNo('pad_changed', 'Cambio de pañal/compresa'),
       {
         key: 'stool',
-        label: 'Stool',
+        label: 'Heces',
         type: 'choice',
         options: [
-          { value: 'hard', label: 'Hard' },
-          { value: 'normal', label: 'Normal' },
-          { value: 'loose', label: 'Loose' },
-          { value: 'diarrhoea', label: 'Diarrhoea' },
+          { value: 'hard', label: 'Duras' },
+          { value: 'normal', label: 'Normales' },
+          { value: 'loose', label: 'Blandas' },
+          { value: 'diarrhoea', label: 'Diarrea' },
         ],
       },
-      yesNo('blood_seen', 'Blood seen'),
+      yesNo('blood_seen', 'Se vio sangre'),
     ],
   },
   fall: {
-    title: 'Fall or near-fall',
+    title: 'Caída o casi caída',
     severity: 'concern',
     fields: [
-      yesNo('near_miss', 'Near-fall only (did not reach the floor)'),
-      yesNo('injured', 'Injured'),
-      yesNo('hit_head', 'Hit their head'),
-      yesNo('needed_help_up', 'Needed help getting up'),
-      { key: 'where', label: 'Where it happened', type: 'text', maxLength: 100 },
+      yesNo('near_miss', 'Solo casi caída (no llegó al suelo)'),
+      yesNo('injured', 'Se hizo daño'),
+      yesNo('hit_head', 'Se golpeó la cabeza'),
+      yesNo('needed_help_up', 'Necesitó ayuda para levantarse'),
+      { key: 'where', label: 'Dónde ocurrió', type: 'text', maxLength: 100 },
     ],
   },
   skin: {
-    title: 'Skin',
+    title: 'Piel',
     fields: [
       {
         key: 'issue',
-        label: 'What did you see',
+        label: 'Qué has visto',
         type: 'choice',
         required: true,
         options: [
-          { value: 'redness', label: 'Redness' },
-          { value: 'pressure_sore', label: 'Pressure sore' },
-          { value: 'bruise', label: 'Bruise' },
-          { value: 'wound', label: 'Cut or wound' },
-          { value: 'rash', label: 'Rash' },
-          { value: 'swelling', label: 'Swelling' },
-          { value: 'dry', label: 'Very dry skin' },
+          { value: 'redness', label: 'Enrojecimiento' },
+          { value: 'pressure_sore', label: 'Úlcera por presión' },
+          { value: 'bruise', label: 'Moratón' },
+          { value: 'wound', label: 'Corte o herida' },
+          { value: 'rash', label: 'Sarpullido' },
+          { value: 'swelling', label: 'Hinchazón' },
+          { value: 'dry', label: 'Piel muy seca' },
         ],
       },
-      { key: 'area', label: 'Body area', type: 'text', maxLength: 100 },
-      yesNo('dressing_applied', 'Dressing or cream applied'),
+      { key: 'area', label: 'Zona del cuerpo', type: 'text', maxLength: 100 },
+      yesNo('dressing_applied', 'Se aplicó apósito o crema'),
     ],
   },
   hygiene: {
-    title: 'Personal care',
+    title: 'Higiene personal',
     fields: [
       {
         key: 'tasks',
-        label: 'What was done',
+        label: 'Qué se hizo',
         type: 'multi',
         options: [
-          { value: 'wash', label: 'Wash' },
-          { value: 'shower', label: 'Shower or bath' },
-          { value: 'oral_care', label: 'Teeth or dentures' },
-          { value: 'hair', label: 'Hair' },
-          { value: 'shave', label: 'Shave' },
-          { value: 'nails', label: 'Nails' },
-          { value: 'dressing', label: 'Dressed' },
-          { value: 'bed_linen', label: 'Bed linen changed' },
+          { value: 'wash', label: 'Aseo' },
+          { value: 'shower', label: 'Ducha o baño' },
+          { value: 'oral_care', label: 'Dientes o dentadura' },
+          { value: 'hair', label: 'Pelo' },
+          { value: 'shave', label: 'Afeitado' },
+          { value: 'nails', label: 'Uñas' },
+          { value: 'dressing', label: 'Vestirse' },
+          { value: 'bed_linen', label: 'Cambio de sábanas' },
         ],
       },
       {
         key: 'assistance',
-        label: 'Help needed',
+        label: 'Ayuda necesaria',
         type: 'choice',
         options: [
-          { value: 'independent', label: 'Independent' },
-          { value: 'some', label: 'Some help' },
-          { value: 'full', label: 'Full help' },
+          { value: 'independent', label: 'Autónomo/a' },
+          { value: 'some', label: 'Algo de ayuda' },
+          { value: 'full', label: 'Ayuda total' },
         ],
       },
-      yesNo('refused', 'Refused care'),
+      yesNo('refused', 'Rechazó la ayuda'),
     ],
   },
   activity: {
-    title: 'Activity',
+    title: 'Actividad',
     fields: [
       {
         key: 'kind',
-        label: 'Activity',
+        label: 'Actividad',
         type: 'choice',
         required: true,
         options: [
-          { value: 'walk', label: 'Walk' },
-          { value: 'exercise', label: 'Exercises' },
-          { value: 'outing', label: 'Outing' },
-          { value: 'visitors', label: 'Visitors' },
-          { value: 'hobby', label: 'Hobby or game' },
-          { value: 'call', label: 'Phone or video call' },
+          { value: 'walk', label: 'Paseo' },
+          { value: 'exercise', label: 'Ejercicios' },
+          { value: 'outing', label: 'Salida' },
+          { value: 'visitors', label: 'Visitas' },
+          { value: 'hobby', label: 'Afición o juego' },
+          { value: 'call', label: 'Llamada o videollamada' },
         ],
       },
-      { key: 'minutes', label: 'Duration', type: 'number', unit: 'min', min: 0, max: 600 },
-      { key: 'enjoyment', label: 'Engagement', type: 'choice', options: QUALITY },
+      { key: 'minutes', label: 'Duración', type: 'number', unit: 'min', min: 0, max: 600 },
+      { key: 'enjoyment', label: 'Participación', type: 'choice', options: QUALITY },
     ],
   },
   behaviour: {
-    title: 'Behaviour',
+    title: 'Conducta',
     fields: [
       {
         key: 'observed',
-        label: 'What did you notice',
+        label: 'Qué has notado',
         type: 'multi',
         required: true,
         options: [
-          { value: 'agitated', label: 'Agitated' },
-          { value: 'withdrawn', label: 'Withdrawn' },
-          { value: 'wandering', label: 'Wandering' },
-          { value: 'aggressive', label: 'Aggressive' },
-          { value: 'tearful', label: 'Tearful' },
-          { value: 'hallucinations', label: 'Seeing or hearing things' },
-          { value: 'sundowning', label: 'Worse in the evening' },
+          { value: 'agitated', label: 'Agitación' },
+          { value: 'withdrawn', label: 'Retraimiento' },
+          { value: 'wandering', label: 'Deambulación' },
+          { value: 'aggressive', label: 'Agresividad' },
+          { value: 'tearful', label: 'Llanto' },
+          { value: 'hallucinations', label: 'Ve u oye cosas' },
+          { value: 'sundowning', label: 'Peor al atardecer' },
         ],
       },
-      { key: 'trigger', label: 'Possible trigger', type: 'text', maxLength: 200 },
-      { key: 'helped', label: 'What helped', type: 'text', maxLength: 200 },
+      { key: 'trigger', label: 'Posible desencadenante', type: 'text', maxLength: 200 },
+      { key: 'helped', label: 'Qué ayudó', type: 'text', maxLength: 200 },
     ],
   },
   appointment: {
-    title: 'Appointment',
+    title: 'Cita médica',
     fields: [
       {
         key: 'with',
-        label: 'With',
+        label: 'Con',
         type: 'choice',
         required: true,
         options: [
-          { value: 'gp', label: 'GP / family doctor' },
-          { value: 'nurse', label: 'Nurse' },
-          { value: 'specialist', label: 'Specialist' },
-          { value: 'dentist', label: 'Dentist' },
-          { value: 'optician', label: 'Optician' },
-          { value: 'physio', label: 'Physiotherapist' },
+          { value: 'gp', label: 'Médico de cabecera' },
+          { value: 'nurse', label: 'Enfermería' },
+          { value: 'specialist', label: 'Especialista' },
+          { value: 'dentist', label: 'Dentista' },
+          { value: 'optician', label: 'Óptica' },
+          { value: 'physio', label: 'Fisioterapia' },
           { value: 'hospital', label: 'Hospital' },
-          { value: 'other', label: 'Other' },
+          { value: 'other', label: 'Otro' },
         ],
       },
-      { key: 'outcome', label: 'Outcome or next steps', type: 'text', multiline: true, maxLength: 500 },
+      { key: 'outcome', label: 'Resultado o próximos pasos', type: 'text', multiline: true, maxLength: 500 },
     ],
   },
   other: {
-    title: 'Note',
+    title: 'Nota',
     fields: [],
   },
 } satisfies Record<string, { title: string; fields: Field[]; severity?: 'info' | 'concern' | 'urgent' }>;
@@ -341,7 +354,7 @@ function eventKind(category: EventCategory): LogKind {
     title: def.title,
     button: def.title,
     fields: [...def.fields, severity(def.severity), notes],
-    validate: (v) => (category === 'other' && !v.notes ? 'Write a note.' : null),
+    validate: (v) => (category === 'other' && !v.notes ? 'Escribe una nota.' : null),
     build: (v, ctx) => [
       {
         table: 'care_events',
@@ -362,34 +375,40 @@ function eventKind(category: EventCategory): LogKind {
 const TIMES = ['07:00', '08:00', '09:00', '12:00', '13:00', '14:00', '17:00', '18:00', '20:00', '21:00', '22:00'];
 
 const medicationFields: Field[] = [
-  { key: 'name', label: 'Medication name', type: 'text', required: true, maxLength: 120 },
-  { key: 'dose', label: 'Dose (e.g. 500 mg, 1 tablet)', type: 'text', maxLength: 60 },
+  { key: 'name', label: 'Nombre del medicamento', type: 'text', required: true, maxLength: 120 },
+  { key: 'dose', label: 'Dosis (p. ej. 500 mg, 1 comprimido)', type: 'text', maxLength: 60 },
   {
     key: 'form',
-    label: 'Form',
+    label: 'Forma',
     type: 'choice',
-    options: ['Tablet', 'Capsule', 'Liquid', 'Inhaler', 'Drops', 'Cream', 'Patch', 'Injection'].map((f) => ({
-      value: f.toLowerCase(),
-      label: f,
-    })),
+    options: [
+      { value: 'tablet', label: 'Comprimido' },
+      { value: 'capsule', label: 'Cápsula' },
+      { value: 'liquid', label: 'Jarabe o líquido' },
+      { value: 'inhaler', label: 'Inhalador' },
+      { value: 'drops', label: 'Gotas' },
+      { value: 'cream', label: 'Crema' },
+      { value: 'patch', label: 'Parche' },
+      { value: 'injection', label: 'Inyección' },
+    ],
   },
-  { key: 'times', label: 'When it is taken', type: 'multi', options: TIMES.map((t) => ({ value: t, label: t })) },
-  { key: 'as_needed', label: 'Only when needed (PRN)', type: 'bool', default: false },
-  { key: 'instructions', label: 'Instructions (e.g. with food)', type: 'text', maxLength: 300 },
-  { key: 'stock_quantity', label: 'How many are in stock now', type: 'number', min: 0, max: 10000, decimals: true },
+  { key: 'times', label: 'Horas de toma', type: 'multi', options: TIMES.map((t) => ({ value: t, label: t })) },
+  { key: 'as_needed', label: 'Solo si lo necesita', type: 'bool', default: false },
+  { key: 'instructions', label: 'Instrucciones (p. ej. con comida)', type: 'text', maxLength: 300 },
+  { key: 'stock_quantity', label: 'Cuántas unidades quedan ahora', type: 'number', min: 0, max: 10000, decimals: true },
   {
     key: 'stock_unit',
-    label: 'Counted in',
+    label: 'Se cuenta en',
     type: 'choice',
-    default: 'tablets',
-    options: ['tablets', 'capsules', 'ml', 'doses', 'patches', 'units'].map((u) => ({ value: u, label: u })),
+    default: 'comprimidos',
+    options: ['comprimidos', 'cápsulas', 'ml', 'dosis', 'parches', 'unidades'].map((u) => ({ value: u, label: u })),
   },
-  { key: 'low_stock_threshold', label: 'Warn me when stock is at or below', type: 'number', min: 0, max: 10000 },
+  { key: 'low_stock_threshold', label: 'Avisar cuando queden', type: 'number', min: 0, max: 10000 },
 ];
 
 const medicationKind: LogKind = {
-  title: 'Add medication',
-  button: 'Add medication',
+  title: 'Añadir medicamento',
+  button: 'Añadir medicamento',
   fields: medicationFields,
   build: (v, ctx) => {
     const id = ctx.newId();
@@ -417,23 +436,23 @@ const medicationKind: LogKind = {
 };
 
 const doseKind: LogKind = {
-  title: 'Medication dose',
-  button: 'Give',
+  title: 'Toma',
+  button: 'Dar',
   fields: [
     {
       key: 'status',
-      label: 'What happened',
+      label: 'Qué pasó',
       type: 'choice',
       required: true,
       default: 'given',
       options: [
-        { value: 'given', label: 'Given' },
-        { value: 'refused', label: 'Refused' },
-        { value: 'missed', label: 'Missed' },
-        { value: 'held', label: 'Held back (on purpose)' },
+        { value: 'given', label: 'Tomada' },
+        { value: 'refused', label: 'Rechazada' },
+        { value: 'missed', label: 'Olvidada' },
+        { value: 'held', label: 'No dada (a propósito)' },
       ],
     },
-    { key: 'quantity', label: 'Amount given', type: 'number', min: 0.01, max: 100, decimals: true, default: 1 },
+    { key: 'quantity', label: 'Cantidad dada', type: 'number', min: 0.01, max: 100, decimals: true, default: 1 },
     notes,
   ],
   build: (v, ctx) => [
@@ -442,6 +461,7 @@ const doseKind: LogKind = {
       row: {
         ...logRow(ctx),
         medication_id: ctx.medicationId,
+        scheduled_time: ctx.scheduledTime,
         status: v.status,
         quantity: v.quantity ?? 1,
         notes: v.notes,
@@ -451,21 +471,21 @@ const doseKind: LogKind = {
 };
 
 const stockKind: LogKind = {
-  title: 'Update stock',
-  button: 'Stock',
+  title: 'Actualizar existencias',
+  button: 'Existencias',
   fields: [
     {
       key: 'reason',
-      label: 'What changed',
+      label: 'Qué cambió',
       type: 'choice',
       required: true,
       default: 'refill',
       options: [
-        { value: 'refill', label: 'Refill received' },
-        { value: 'disposed', label: 'Thrown away or lost' },
+        { value: 'refill', label: 'Ha llegado reposición' },
+        { value: 'disposed', label: 'Desechado o perdido' },
       ],
     },
-    { key: 'quantity', label: 'How many', type: 'number', required: true, min: 0.01, max: 10000, decimals: true },
+    { key: 'quantity', label: 'Cuántas', type: 'number', required: true, min: 0.01, max: 10000, decimals: true },
     notes,
   ],
   build: (v, ctx) => [
@@ -486,33 +506,41 @@ const stockKind: LogKind = {
 
 export const LOG_KINDS = {
   checkin: {
-    title: 'Visit check-in',
-    button: 'Visit check-in',
+    title: 'Revisión de la visita',
+    button: 'Revisión',
     fields: checkInFields,
     validate: (v) =>
-      checkInFields.some((f) => f.key !== 'notes' && v[f.key] !== undefined) ? null : 'Answer at least one question.',
+      checkInFields.some((f) => f.key !== 'notes' && v[f.key] !== undefined) ? null : 'Responde al menos una pregunta.',
     build: (v, ctx) => [{ table: 'check_ins', row: { ...logRow(ctx), ...pick(v, fieldKeys(checkInFields)) } }],
   },
   vitals: {
-    title: 'Vital signs',
-    button: 'Vital signs',
+    title: 'Constantes vitales',
+    button: 'Constantes',
     fields: vitalFields,
     validate: (v) => {
       if ((v.systolic === undefined) !== (v.diastolic === undefined)) {
-        return 'Enter both blood pressure numbers, or neither.';
+        return 'Introduce los dos valores de tensión, o ninguno.';
       }
       if (v.systolic !== undefined && (v.systolic as number) <= (v.diastolic as number)) {
-        return 'The top blood pressure number should be higher than the bottom one.';
+        return 'La tensión alta debe ser mayor que la baja.';
       }
-      return VITAL_KEYS.some((k) => v[k] !== undefined) ? null : 'Enter at least one measurement.';
+      return VITAL_KEYS.some((k) => v[k] !== undefined) ? null : 'Introduce al menos una medida.';
     },
     build: (v, ctx) => [{ table: 'vitals', row: { ...logRow(ctx), ...pick(v, fieldKeys(vitalFields)) } }],
   },
   meal: {
-    title: 'Food and drink',
-    button: 'Food & drink',
+    title: 'Comida',
+    button: 'Comida',
     fields: mealFields,
     build: (v, ctx) => [{ table: 'meals', row: { ...logRow(ctx), ...pick(v, fieldKeys(mealFields)) } }],
+  },
+  drink: {
+    title: 'Bebida',
+    button: 'Bebida',
+    fields: drinkFields,
+    build: (v, ctx) => [
+      { table: 'meals', row: { ...logRow(ctx), meal_type: 'drink', ...pick(v, fieldKeys(drinkFields)) } },
+    ],
   },
   sleep: eventKind('sleep'),
   toileting: eventKind('toileting'),
@@ -529,22 +557,6 @@ export const LOG_KINDS = {
 } satisfies Record<string, LogKind>;
 
 export type LogKindKey = keyof typeof LOG_KINDS;
-
-/** Buttons shown on the person's page, in order. Medication kinds are reached from the medication list. */
-export const QUICK_LOGS: LogKindKey[] = [
-  'checkin',
-  'vitals',
-  'meal',
-  'sleep',
-  'toileting',
-  'hygiene',
-  'activity',
-  'behaviour',
-  'skin',
-  'fall',
-  'appointment',
-  'other',
-];
 
 export function isLogKind(key: string): key is LogKindKey {
   return key in LOG_KINDS;
@@ -571,9 +583,9 @@ function formatValue(field: Field, value: unknown): string {
     case 'multi':
       return (value as unknown[]).map((v) => field.options.find((o) => o.value === v)?.label ?? String(v)).join(', ');
     case 'bool':
-      return value ? 'Yes' : 'No';
+      return value ? 'Sí' : 'No';
     case 'number':
-      return field.unit ? `${value} ${field.unit}` : String(value);
+      return `${(value as number).toLocaleString('es-ES')}${field.unit ? ` ${field.unit}` : ''}`;
     default:
       return String(value);
   }

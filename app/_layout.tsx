@@ -4,11 +4,13 @@ import { StatusBar } from 'expo-status-bar';
 import { Body, Button, Loading, Screen, Title } from '@/components/ui';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { useOutboxAutoFlush } from '@/lib/outbox';
+import { PersonProvider } from '@/lib/person';
+import { useTheme } from '@/lib/theme';
 
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <StatusBar style="dark" />
+      <StatusBar style="auto" />
       <RootNavigator />
     </AuthProvider>
   );
@@ -16,6 +18,7 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { session, profile, loading, hasCurrentConsent, refreshProfile, signOut } = useAuth();
+  const t = useTheme();
   useOutboxAutoFlush(session?.user.id);
 
   if (loading) return <Loading />;
@@ -24,36 +27,49 @@ function RootNavigator() {
   if (session && !profile) {
     return (
       <Screen>
-        <Title>We couldn't load your account</Title>
-        <Body muted>Check your connection and try again.</Body>
-        <Button title="Try again" onPress={refreshProfile} />
-        <Button title="Sign out" variant="secondary" onPress={signOut} />
+        <Title>No se ha podido cargar tu cuenta</Title>
+        <Body muted>Revisa tu conexión y vuelve a intentarlo.</Body>
+        <Button title="Reintentar" onPress={refreshProfile} />
+        <Button title="Cerrar sesión" variant="secondary" onPress={signOut} />
       </Screen>
     );
   }
 
   const ready = !!session && hasCurrentConsent;
+  const caregiver = ready && profile?.role === 'caregiver';
+  const modal = {
+    presentation: 'modal' as const,
+    headerShown: true,
+    headerStyle: { backgroundColor: t.bg },
+    headerTintColor: t.primary,
+    headerTitleStyle: { color: t.text, fontSize: 18, fontWeight: '700' as const },
+    headerShadowVisible: false,
+  };
 
   // When a guard flips (sign-in, consent given, sign-out), Expo Router sends the user back to
   // the first available screen — index — which redirects to wherever they now belong.
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Protected guard={!session}>
-        <Stack.Screen name="(auth)" />
-      </Stack.Protected>
-      <Stack.Protected guard={!!session && !hasCurrentConsent}>
-        <Stack.Screen name="consent" />
-      </Stack.Protected>
-      <Stack.Protected guard={ready}>
-        <Stack.Screen name="join" options={{ headerShown: true, title: 'Join with a code' }} />
-      </Stack.Protected>
-      <Stack.Protected guard={ready && profile?.role === 'caregiver'}>
-        <Stack.Screen name="caregiver" />
-      </Stack.Protected>
-      <Stack.Protected guard={ready && profile?.role === 'family'}>
-        <Stack.Screen name="family" />
-      </Stack.Protected>
-    </Stack>
+    <PersonProvider key={session?.user.id ?? 'signed-out'}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg } }}>
+        <Stack.Screen name="index" />
+        <Stack.Protected guard={!session}>
+          <Stack.Screen name="(auth)" />
+        </Stack.Protected>
+        <Stack.Protected guard={!!session && !hasCurrentConsent}>
+          <Stack.Screen name="consent" />
+        </Stack.Protected>
+        <Stack.Protected guard={ready}>
+          <Stack.Screen name="home" />
+          <Stack.Screen name="people" options={{ ...modal, title: 'Personas' }} />
+          <Stack.Screen name="join" options={{ ...modal, title: 'Unirse con un código' }} />
+          <Stack.Screen name="metric/[key]" options={{ ...modal, presentation: 'card', title: '' }} />
+        </Stack.Protected>
+        <Stack.Protected guard={caregiver}>
+          <Stack.Screen name="add-person" options={{ ...modal, title: 'Añadir persona' }} />
+          <Stack.Screen name="log/index" options={{ ...modal, title: 'Registrar' }} />
+          <Stack.Screen name="log/[kind]" options={{ ...modal, title: '' }} />
+        </Stack.Protected>
+      </Stack>
+    </PersonProvider>
   );
 }

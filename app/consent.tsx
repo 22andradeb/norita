@@ -2,20 +2,21 @@ import { useState } from 'react';
 
 import { Body, Button, ErrorText, Screen, Title } from '@/components/ui';
 import { CONSENT_VERSION, useAuth } from '@/lib/auth';
+import { translateError } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 
-// DRAFT wording — must be reviewed (GDPR / data-protection officer) before any pilot.
-// When you change it, bump CONSENT_VERSION in lib/auth.tsx so everyone re-consents.
+// BORRADOR — debe revisarlo el delegado de protección de datos (RGPD / LOPDGDD) antes de cualquier piloto.
+// Si cambias el texto, sube CONSENT_VERSION en lib/auth.tsx para que todos vuelvan a aceptarlo.
 const CAREGIVER_TEXT = [
-  'Norita records care information about the people you look after: visit check-ins, vital signs, medications and stock, food and drink, sleep, toileting, personal care, falls, skin, behaviour and appointments.',
-  'This is health information. It is shared only with the care team and family members you invite with a code.',
-  'Record only what is needed for their care. Don’t enter full names, addresses, ID numbers or unrelated medical history in notes.',
+  'Norita guarda información de cuidados de las personas que atiendes: revisiones de la visita, constantes vitales, medicación y existencias, comidas y bebidas, sueño, baño, higiene, caídas, piel, conducta y citas médicas.',
+  'Son datos de salud. Solo los ve el equipo de cuidados y los familiares que invites con un código.',
+  'Registra solo lo necesario para el cuidado. No escribas en las notas nombres completos, direcciones, números de identificación ni antecedentes médicos que no hagan falta.',
 ];
 
 const FAMILY_TEXT = [
-  'You will see care records and alerts about the person you are linked to, including health information such as vital signs and medications.',
-  'Alerts are based on simple comparisons with that person’s usual pattern. They are not a medical diagnosis.',
-  'You can ask us to delete your account and data at any time.',
+  'Verás los registros de cuidados y los avisos de la persona a la que estás vinculado/a, incluidos datos de salud como constantes vitales y medicación.',
+  'Los avisos se basan en comparaciones sencillas con lo habitual en esa persona y en rangos de referencia generales. No son un diagnóstico médico.',
+  'Puedes pedirnos que eliminemos tu cuenta y tus datos en cualquier momento.',
 ];
 
 export default function Consent() {
@@ -33,7 +34,7 @@ export default function Consent() {
       .eq('id', session.user.id);
     if (error) {
       setSubmitting(false);
-      return setError(error.message);
+      return setError(translateError(error.message));
     }
     // Refreshing flips the consent guard in the root layout, which moves the user on.
     await refreshProfile();
@@ -43,13 +44,13 @@ export default function Consent() {
 
   return (
     <Screen>
-      <Title>Before you start</Title>
+      <Title>Antes de empezar</Title>
       {lines.map((line) => (
         <Body key={line}>{line}</Body>
       ))}
       <ErrorText>{error}</ErrorText>
-      <Button title="I agree" onPress={onAgree} loading={submitting} />
-      <Button title="Not now — sign out" variant="secondary" onPress={signOut} />
+      <Button title="Acepto" onPress={onAgree} loading={submitting} />
+      <Button title="Ahora no — cerrar sesión" variant="secondary" onPress={signOut} />
     </Screen>
   );
 }

@@ -25,19 +25,27 @@ One Expo app with two experiences: **caregiver** and **family**, chosen at sign-
    ```
    Scan the QR code with Expo Go on your phone.
 
-## How routing works
+## How the app is organised
 
-`app/_layout.tsx` gates every area with `Stack.Protected`:
+`app/_layout.tsx` gates every area with `Stack.Protected`: signed-out users see `app/(auth)/`,
+users who haven't accepted the current consent see `app/consent.tsx`, everyone else gets the tabs.
 
-| State                               | Area                     |
-| ----------------------------------- | ------------------------ |
-| Signed out                          | `app/(auth)/` sign-in, sign-up |
-| Signed in, no current consent       | `app/consent.tsx`        |
-| Consented caregiver                 | `app/caregiver/`         |
-| Consented family member             | `app/family/`            |
+| Tab | What's on it |
+| --- | --- |
+| Hoy (`app/home/index.tsx`) | Week strip, wellbeing score ring, medication / fluid / meal rings, next dose, top warnings, vital-sign widgets, streaks, day log |
+| Medicación (`app/home/meds.tsx`) | Today's dose checklist (one tap to log), as-needed meds, stock and low-stock warnings |
+| Análisis (`app/home/trends.tsx`) | All warnings, period summary, four streaks, logging-coverage calendar, medication adherence, wellbeing, time in range and charts per vital sign, fluids, meals, sleep, what was logged and when |
+| Equipo (`app/home/team.tsx`) | Care team, invite codes, fluid goal, account |
 
-Roles come from sign-up metadata and are written once by the `handle_new_user` trigger;
-users cannot change their own role afterwards (column-level grants).
+Caregivers get a "+" button that opens the log sheet (`app/log/index.tsx`). Family members see the
+same screens read-only. The person being viewed is chosen at the top of each tab (`app/people.tsx`)
+and remembered per user (`lib/person.tsx`). Tapping a vital widget opens `app/metric/[key].tsx`.
+
+The UI is in Spanish (Spain); dates and numbers are formatted in `lib/format.ts`, which also translates
+server error messages. Warnings and streaks are computed in `lib/insights.ts`.
+
+Vital-sign status colours come from general adult reference ranges in `lib/vitals.ts`; they should be
+reviewed with a clinician and are not a diagnosis.
 
 ## What caregivers can log
 
@@ -64,8 +72,8 @@ Applies all migrations to an in-memory Postgres and checks who can read and writ
 
 1. ~~Scaffold, auth and role-based navigation~~
 2. ~~Data model: older adults, care teams, invite codes, all care logs~~
-3. ~~Caregiver logging (offline-first)~~ — streak counter still to do
-4. Family dashboard (currently a read-only timeline)
+3. ~~Caregiver logging (offline-first), check-in streak~~
+4. ~~Dashboard redesign: tabs, rings, vital widgets, trends~~ — "next step" card for family still to do
 5. Rule-based deviation detection (edge function, rolling baseline)
 6. Internal testing (TestFlight / Play internal track)
 7. Store submission

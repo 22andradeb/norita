@@ -2,8 +2,11 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import type { Field, Values } from '@/lib/logKinds';
+import { errorText } from '@/lib/format';
+import { useTheme } from '@/lib/theme';
 
 import { Button, Chip, ErrorText, Field as TextField, Row } from './ui';
+import { WhenPicker } from './WhenPicker';
 
 type Raw = Record<string, unknown>;
 
@@ -23,19 +26,19 @@ function parse(fields: Field[], raw: Raw): { values: Values } | { error: string 
     const input = raw[f.key];
     const empty = input === undefined || input === '' || (Array.isArray(input) && input.length === 0);
     if (empty) {
-      if (f.required) return { error: `${f.label} is required.` };
+      if (f.required) return { error: `Falta: ${f.label}.` };
       continue;
     }
     if (f.type === 'number') {
       const n = Number(String(input).replace(',', '.'));
-      if (!Number.isFinite(n)) return { error: `${f.label} must be a number.` };
-      if (!f.decimals && !Number.isInteger(n)) return { error: `${f.label} must be a whole number.` };
-      if (n < f.min || n > f.max) return { error: `${f.label} must be between ${f.min} and ${f.max}.` };
+      if (!Number.isFinite(n)) return { error: `${f.label}: tiene que ser un número.` };
+      if (!f.decimals && !Number.isInteger(n)) return { error: `${f.label}: tiene que ser un número entero.` };
+      if (n < f.min || n > f.max) return { error: `${f.label}: debe estar entre ${f.min} y ${f.max}.` };
       values[f.key] = n;
     } else if (f.type === 'text') {
       const s = String(input).trim();
       if (s) values[f.key] = s;
-      else if (f.required) return { error: `${f.label} is required.` };
+      else if (f.required) return { error: `Falta: ${f.label}.` };
     } else {
       values[f.key] = input;
     }
@@ -46,15 +49,19 @@ function parse(fields: Field[], raw: Raw): { values: Values } | { error: string 
 export function LogForm({
   fields,
   validate,
-  submitLabel = 'Save',
+  submitLabel = 'Guardar',
+  defaultWhen,
   onSubmit,
 }: {
   fields: Field[];
   validate?: (values: Values) => string | null;
   submitLabel?: string;
-  onSubmit: (values: Values) => Promise<void>;
+  /** When set, the form asks when it happened, starting from this time. */
+  defaultWhen?: Date;
+  onSubmit: (values: Values, when: Date) => Promise<void>;
 }) {
   const [raw, setRaw] = useState<Raw>(() => initialRaw(fields));
+  const [when, setWhen] = useState<Date>(() => defaultWhen ?? new Date());
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -68,15 +75,16 @@ export function LogForm({
     setError(null);
     setSubmitting(true);
     try {
-      await onSubmit(result.values);
+      await onSubmit(result.values, when);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorText(e));
       setSubmitting(false);
     }
   }
 
   return (
-    <View style={{ gap: 20 }}>
+    <View style={{ gap: 22 }}>
+      {defaultWhen ? <WhenPicker value={when} onChange={setWhen} /> : null}
       {fields.map((f) => (
         <FieldInput key={f.key} field={f} value={raw[f.key]} onChange={(v) => set(f.key, v)} />
       ))}
@@ -114,7 +122,7 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
     case 'bool':
       return (
         <Group label={label}>
-          <Chip label="Yes" selected={value === true} onPress={() => onChange(value === true ? undefined : true)} />
+          <Chip label="Sí" selected={value === true} onPress={() => onChange(value === true ? undefined : true)} />
           <Chip label="No" selected={value === false} onPress={() => onChange(value === false ? undefined : false)} />
         </Group>
       );
@@ -154,9 +162,10 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
 }
 
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
+  const t = useTheme();
   return (
     <View style={{ gap: 8 }}>
-      <Text style={{ fontSize: 16, fontWeight: '600' }} accessibilityRole="text">
+      <Text style={{ fontSize: 16, fontWeight: '600', color: t.text }} accessibilityRole="text">
         {label}
       </Text>
       <Row>{children}</Row>

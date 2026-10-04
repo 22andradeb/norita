@@ -4,9 +4,12 @@ import { useState } from 'react';
 import { Body, Button, ErrorText, Field, Screen } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { errorText } from '@/lib/format';
+import { usePerson } from '@/lib/person';
 
 export default function Join() {
   const { profile } = useAuth();
+  const { reload, select } = usePerson();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -16,34 +19,34 @@ export default function Join() {
     setSubmitting(true);
     try {
       const id = await api.redeemInvite(code);
-      router.replace({
-        pathname: profile?.role === 'family' ? '/family/[id]' : '/caregiver/[id]',
-        params: { id },
-      });
+      await reload();
+      select(id);
+      router.back();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorText(e));
       setSubmitting(false);
     }
   }
 
   return (
-    <Screen>
+    <Screen edges={['bottom']}>
       <Body>
         {profile?.role === 'family'
-          ? 'Enter the 8-character code the caregiver shared with you.'
-          : 'Enter the 8-character code another caregiver shared with you to join this person’s care team.'}
+          ? 'Introduce el código de 8 caracteres que te ha enviado el cuidador.'
+          : 'Introduce el código de 8 caracteres que te ha enviado otro cuidador para unirte al equipo de cuidados.'}
       </Body>
       <Field
-        label="Invite code"
+        label="Código de invitación"
         value={code}
         onChangeText={(t) => setCode(t.toUpperCase())}
         autoCapitalize="characters"
         autoCorrect={false}
         maxLength={12}
+        placeholder="ABCD-2345"
         style={{ fontSize: 24, letterSpacing: 4 }}
       />
       <ErrorText>{error}</ErrorText>
-      <Button title="Join" onPress={onSubmit} loading={submitting} />
+      <Button title="Unirme" onPress={onSubmit} loading={submitting} />
     </Screen>
   );
 }
