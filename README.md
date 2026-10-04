@@ -270,6 +270,19 @@ Applies all migrations to an in-memory Postgres and checks who can read and writ
 6. Internal testing (TestFlight / Play internal track): account deletion, privacy policy, icon, EAS config
 7. Store submission
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main` and on pull requests: TypeScript type-check,
+database tests, an iOS + Android bundle, and a Deno type-check of both edge functions. Results are in
+the repository's **Actions** tab; GitHub emails you if a run fails.
+
+## Documents
+
+- [`docs/clinical-references.md`](docs/clinical-references.md) — every threshold, scale and alert rule
+  the app uses, with sources, for clinical review (in Spanish).
+- [`docs/privacy-policy.md`](docs/privacy-policy.md) — **draft** privacy policy (in Spanish), to be
+  reviewed by a data-protection professional before use.
+
 ## Before a real pilot
 
 This app handles health-related data about older adults. The consent text in `app/consent.tsx`

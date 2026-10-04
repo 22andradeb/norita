@@ -1,0 +1,47 @@
+# Runs on every push and pull request: the app must type-check and bundle, the edge functions must
+# type-check, and the database tests (all migrations on an in-memory Postgres) must pass.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  app:
+    name: App (types, bundle, database tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Type-check
+        run: npx tsc --noEmit
+      - name: Database tests
+        run: npm run test:db
+      - name: Bundle for iOS and Android
+        env:
+          # Placeholders: bundling only checks the code compiles, it never talks to Supabase.
+          EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+        run: npx expo export --platform ios --platform android --output-dir dist
+
+  functions:
+    name: Edge functions (Deno type-check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check transcribe-document
+        working-directory: supabase/functions/transcribe-document
+        run: deno check --config deno.json --node-modules-dir=none index.ts
+      - name: Type-check send-alerts
+        working-directory: supabase/functions/send-alerts
+        run: deno check --config deno.json --node-modules-dir=none index.ts
