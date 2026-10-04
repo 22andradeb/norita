@@ -6,7 +6,7 @@ import { supabase } from './supabase';
 export type Role = 'caregiver' | 'family';
 
 // Bump this when the consent text in app/consent.tsx changes, so users re-consent.
-export const CONSENT_VERSION = '2026-10-v1';
+export const CONSENT_VERSION = '2026-10-v2';
 
 export type Profile = {
   id: string;

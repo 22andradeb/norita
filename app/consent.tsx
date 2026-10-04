@@ -7,13 +7,13 @@ import { supabase } from '@/lib/supabase';
 // DRAFT wording — must be reviewed (GDPR / data-protection officer) before any pilot.
 // When you change it, bump CONSENT_VERSION in lib/auth.tsx so everyone re-consents.
 const CAREGIVER_TEXT = [
-  'Norita records short, structured notes about each visit: appetite, mobility, mood, confusion, medication and social contact.',
-  'These notes are shared only with the family members linked to the person you care for.',
-  'We do not collect free-text medical histories, ID numbers or location.',
+  'Norita records care information about the people you look after: visit check-ins, vital signs, medications and stock, food and drink, sleep, toileting, personal care, falls, skin, behaviour and appointments.',
+  'This is health information. It is shared only with the care team and family members you invite with a code.',
+  'Record only what is needed for their care. Don’t enter full names, addresses, ID numbers or unrelated medical history in notes.',
 ];
 
 const FAMILY_TEXT = [
-  'You will see visit notes and alerts about the person you are linked to.',
+  'You will see care records and alerts about the person you are linked to, including health information such as vital signs and medications.',
   'Alerts are based on simple comparisons with that person’s usual pattern. They are not a medical diagnosis.',
   'You can ask us to delete your account and data at any time.',
 ];

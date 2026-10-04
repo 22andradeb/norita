@@ -20,7 +20,12 @@ export const colors = {
   primary: '#0B5FA5',
   onPrimary: '#FFFFFF',
   border: '#8A8A8A',
+  divider: '#E2E2E2',
+  surface: '#F4F6F8',
   danger: '#B3261E',
+  dangerBg: '#FDECEA',
+  warning: '#7A4B00',
+  warningBg: '#FFF4E0',
 };
 
 export function Screen({ children }: PropsWithChildren) {
@@ -54,14 +59,14 @@ export function ErrorText({ children }: PropsWithChildren) {
   );
 }
 
-export function Field({ label, ...props }: TextInputProps & { label: string }) {
+export function Field({ label, style, ...props }: TextInputProps & { label: string }) {
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
         accessibilityLabel={label}
         placeholderTextColor={colors.muted}
-        style={styles.input}
+        style={[styles.input, style]}
         {...props}
       />
     </View>
@@ -103,6 +108,42 @@ export function Button({
   );
 }
 
+export function Heading({ children }: PropsWithChildren) {
+  return (
+    <Text style={styles.heading} accessibilityRole="header">
+      {children}
+    </Text>
+  );
+}
+
+export function Card({ children, tone }: PropsWithChildren<{ tone?: 'warning' | 'danger' }>) {
+  const toneStyle =
+    tone === 'danger'
+      ? { backgroundColor: colors.dangerBg, borderColor: colors.danger }
+      : tone === 'warning'
+        ? { backgroundColor: colors.warningBg, borderColor: colors.warning }
+        : null;
+  return <View style={[styles.card, toneStyle]}>{children}</View>;
+}
+
+/** Selectable pill used for choices; meets the 48pt touch target. */
+export function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      style={[styles.chip, selected && styles.chipSelected]}
+    >
+      <Text style={[styles.chipText, selected && { color: colors.onPrimary }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+export function Row({ children }: PropsWithChildren) {
+  return <View style={styles.row}>{children}</View>;
+}
+
 export function Loading() {
   return (
     <View style={[styles.safe, { justifyContent: 'center' }]}>
@@ -138,4 +179,25 @@ const styles = StyleSheet.create({
   buttonPrimary: { backgroundColor: colors.primary },
   buttonSecondary: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.bg },
   buttonText: { fontSize: 18, fontWeight: '600' },
+  heading: { fontSize: 21, fontWeight: '700', color: colors.text, marginTop: 8 },
+  card: {
+    borderWidth: 1,
+    borderColor: colors.divider,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    gap: 6,
+  },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    minHeight: 48,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    backgroundColor: colors.bg,
+    justifyContent: 'center',
+  },
+  chipSelected: { backgroundColor: colors.primary },
+  chipText: { fontSize: 17, fontWeight: '600', color: colors.primary },
 });

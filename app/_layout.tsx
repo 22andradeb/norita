@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 
 import { Body, Button, Loading, Screen, Title } from '@/components/ui';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { useOutboxAutoFlush } from '@/lib/outbox';
 
 export default function RootLayout() {
   return (
@@ -15,6 +16,7 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { session, profile, loading, hasCurrentConsent, refreshProfile, signOut } = useAuth();
+  useOutboxAutoFlush(session?.user.id);
 
   if (loading) return <Loading />;
 
@@ -42,6 +44,9 @@ function RootNavigator() {
       </Stack.Protected>
       <Stack.Protected guard={!!session && !hasCurrentConsent}>
         <Stack.Screen name="consent" />
+      </Stack.Protected>
+      <Stack.Protected guard={ready}>
+        <Stack.Screen name="join" options={{ headerShown: true, title: 'Join with a code' }} />
       </Stack.Protected>
       <Stack.Protected guard={ready && profile?.role === 'caregiver'}>
         <Stack.Screen name="caregiver" />
