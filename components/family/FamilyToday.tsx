@@ -1,16 +1,20 @@
 import { router } from 'expo-router';
 import { Text, View } from 'react-native';
 
+import { AlertsCard } from '@/components/AlertsCard';
 import { NextAppointmentCard } from '@/components/appointments';
 import { ActivityList } from '@/components/care';
+import { ScalesCard } from '@/components/scales';
 import { PersonCard } from '@/components/PersonCard';
 import { Button, Caption, EmptyState, ErrorText, Heading, Icon, Loading, Screen, Title } from '@/components/ui';
 import { VisitCard } from '@/components/VisitCard';
-import { DayHero, WarningList, dayTitle } from '@/components/widgets';
+import { DayHero, dayTitle } from '@/components/widgets';
+import { asWarnings, listAlerts, openAlerts } from '@/lib/alerts';
 import { api, useLoad } from '@/lib/api';
+import { listAssessments } from '@/lib/assessments';
 import { lastEntryAt, overallStatus } from '@/lib/family';
 import { timeAgo } from '@/lib/format';
-import { buildWarnings, dailyStats } from '@/lib/insights';
+import { dailyStats } from '@/lib/insights';
 import { useOutbox } from '@/lib/outbox';
 import { usePerson } from '@/lib/person';
 import { addDays, startOfDay } from '@/lib/stats';
@@ -23,6 +27,8 @@ export function FamilyToday() {
   const { person, loading: peopleLoading } = usePerson();
   const { lastSyncedAt } = useOutbox();
   const insight = useInsightData(person, 14);
+  const alertFeed = useLoad(async () => (person ? listAlerts(person.id, 14) : []), [person?.id, lastSyncedAt]);
+  const scales = useLoad(async () => (person ? listAssessments(person.id) : []), [person?.id, lastSyncedAt]);
   const pid = person?.id;
   const today = useLoad(async () => {
     if (!pid) return null;
@@ -49,8 +55,8 @@ export function FamilyToday() {
   const data = insight.data;
   const days = data ? dailyStats(data, 14) : [];
   const d = days[days.length - 1];
-  const warnings = data ? buildWarnings(data) : [];
-  const status = overallStatus(warnings, person.nickname);
+  const open = alertFeed.data ? openAlerts(alertFeed.data) : [];
+  const status = overallStatus(asWarnings(open), person.nickname);
   const lastAt = data ? lastEntryAt(data) : null;
   const items = today.data?.items ?? [];
 
@@ -82,6 +88,7 @@ export function FamilyToday() {
       </View>
       <VisitCard items={items} nickname={person.nickname} />
 
+      <ScalesCard assessments={scales.data ?? []} />
       {d ? (
         <DayHero
           fluidGoal={person.fluid_goal_ml}
@@ -90,18 +97,13 @@ export function FamilyToday() {
             dosesScheduled: d.dosesDue,
             fluidsMl: d.fluidsMl,
             mainMeals: d.mainMeals,
-            wellbeing: d.wellbeing,
             checkedIn: d.checkIn,
           }}
         />
       ) : null}
 
-      {warnings.length ? (
-        <>
-          <Heading>Avisos</Heading>
-          <WarningList warnings={warnings} limit={4} />
-        </>
-      ) : null}
+      <Heading>Avisos</Heading>
+      {alertFeed.data ? <AlertsCard open={open} onChanged={alertFeed.reload} /> : null}
 
       <Heading>Lo que pasó en el día</Heading>
       {items.length ? (

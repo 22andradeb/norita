@@ -33,7 +33,7 @@ export type Medication = {
 };
 
 export type ActivityItem = {
-  kind: 'check_in' | 'vitals' | 'meal' | 'care_event' | 'medication_dose' | 'stock_change' | 'visit';
+  kind: 'check_in' | 'vitals' | 'meal' | 'care_event' | 'medication_dose' | 'stock_change' | 'visit' | 'assessment';
   id: string;
   older_adult_id: string;
   recorded_at: string;

@@ -123,7 +123,8 @@ export function LineChart({
   const y = (v: number) => top + (1 - (v - yMin) / (yMax - yMin || 1)) * plotH;
 
   const dateLabel = (ms: number) => new Date(ms).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-  const ticks = [yMin + pad, (yMin + yMax) / 2, yMax - pad];
+  // When every reading has the same value the three gridlines coincide; draw each value once.
+  const ticks = [...new Set([yMin + pad, (yMin + yMax) / 2, yMax - pad].map((v) => Math.round(v * 100) / 100))];
 
   return (
     <View style={{ height }} onLayout={onLayout}>

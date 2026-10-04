@@ -3,6 +3,7 @@ import { randomUUID } from 'expo-crypto';
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 
+import { nudgeDelivery } from './alerts';
 import type { Write } from './logKinds';
 import { supabase } from './supabase';
 
@@ -15,6 +16,19 @@ type Op = Write & { opId: string; userId: string; queuedAt: string; error?: stri
 type Snapshot = { pending: number; failed: Op[]; lastSyncedAt: number };
 
 const STORAGE_KEY = 'norita.outbox.v1';
+
+// Entries that can raise an alert on the server; after syncing one, ask for delivery right away
+// instead of waiting for the next scheduled run.
+const ALERTING_TABLES = new Set(['care_events', 'medication_doses', 'vitals', 'check_ins']);
+let nudgeTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleNudge() {
+  if (nudgeTimer) clearTimeout(nudgeTimer);
+  nudgeTimer = setTimeout(() => {
+    nudgeTimer = null;
+    nudgeDelivery();
+  }, 2000);
+}
+
 const RETRY_EVERY_MS = 30_000;
 
 let queue: Op[] = [];
@@ -55,7 +69,9 @@ export async function enqueue(userId: string, writes: Write[]) {
 }
 
 // Network trouble, an expired session, rate limiting or a server hiccup: keep it and retry.
-const isTransient = (status: number) => status === 0 || status === 401 || status === 408 || status === 429 || status >= 500;
+// 404 means the table doesn't exist yet (a migration still to run): keep the entry until it does.
+const isTransient = (status: number) =>
+  status === 0 || status === 401 || status === 404 || status === 408 || status === 429 || status >= 500;
 
 /** Sends this user's queued writes in order. Another user's entries stay queued until they sign in. */
 export async function flush(userId: string) {
@@ -86,6 +102,7 @@ export async function flush(userId: string) {
         failed = [...failed, { ...op, error: message }];
       } else {
         lastSyncedAt = Date.now();
+        if (ALERTING_TABLES.has(op.table)) scheduleNudge();
       }
       await persist();
     }
@@ -97,6 +114,15 @@ export async function flush(userId: string) {
 export async function discardFailed() {
   failed = [];
   await persist();
+}
+
+/** Puts rejected entries back in the queue (e.g. after the database was updated) and sends them. */
+export async function retryFailed(userId: string) {
+  await loaded;
+  queue = [...failed.map(({ error: _error, ...op }) => op), ...queue];
+  failed = [];
+  await persist();
+  void flush(userId);
 }
 
 function subscribe(listener: () => void) {

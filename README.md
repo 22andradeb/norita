@@ -94,6 +94,53 @@ npx supabase functions deploy transcribe-document
 This sends health documents to the Anthropic API: put a data processing agreement in place and
 get the required authorisation before using real patient documents.
 
+## Validated scales (WHO-5 and FRAIL)
+
+Wellbeing and frailty use validated instruments, not an app-made score (`lib/assessments.ts`,
+`supabase/migrations/*_assessments.sql`):
+
+- **WHO-5 Well-Being Index** — official Spanish wording (OMS-5, 1998), free to use; Spanish version
+  validated in older adults. 5 items × 0–5, score × 4 → 0–100. ≤ 50 low, ≤ 28 very low; a 10-point
+  change is meaningful. Suggested every 2 weeks.
+- **FRAIL scale** (Morley 2012), Spanish wording as used in Spanish primary care — have a clinician
+  confirm it matches their service's version. 0 robust, 1–2 prefrail, 3–5 frail; Spain's 2026
+  consensus on frailty prevention treats ≥ 1 as a positive screen. Suggested monthly.
+
+Anyone on the care team can run them with the person (Hoy, Salud → Bienestar, or "+"). The
+database recomputes every score, raises alerts on low/falling WHO-5 and positive/worsening FRAIL,
+and reminds the team when a scale is due. Both are screening tools, not a diagnosis.
+
+## Notifications
+
+Alerts are created in the database (`supabase/migrations/*_alerts.sql`): triggers on new entries
+(falls, urgent events, missed doses, vitals out of the reference range or unusual for that person
+compared with their last 30 days, confusion, little sleep, abnormal exams) and a check every 10
+minutes (nothing logged by 12:00/20:00, unlogged doses, low stock, tomorrow's appointments, and a
+morning review of yesterday's fluids, meals and check-in, bowel movements and wellbeing trend).
+Each alert is unique per situation, shown on Hoy and in Avisos, and can be marked as seen.
+
+The `send-alerts` edge function pushes pending alerts to the care team (except whoever logged the
+entry), respecting each user's preference (Equipo → Notificaciones). pg_cron calls it every
+minute; the app also calls it right after syncing entries that can raise alerts.
+
+One-time setup:
+
+```bash
+npx eas-cli init                                   # links an Expo project (adds extra.eas.projectId)
+openssl rand -hex 32                               # make a random secret, use it below twice
+npx supabase secrets set CRON_SECRET=<secret>
+npx supabase functions deploy send-alerts --no-verify-jwt
+```
+
+Then in the Supabase SQL editor:
+
+```sql
+select vault.create_secret('https://<project-ref>.supabase.co', 'norita_project_url');
+select vault.create_secret('<secret>', 'norita_cron_secret');
+```
+
+Push works in Expo Go on iPhone; Android needs a development build.
+
 ## Database tests
 
 ```bash

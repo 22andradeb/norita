@@ -4,12 +4,14 @@ import { Text, View } from 'react-native';
 
 import { BarChart, Legend, LineChart } from '@/components/charts';
 import { PersonCard } from '@/components/PersonCard';
+import { ScalesHistory } from '@/components/scales';
 import { Caption, Card, EmptyState, ErrorText, Loading, Screen, Segmented, StatusPill, Title } from '@/components/ui';
 import { ChartCard, Delta, StreakTile } from '@/components/widgets';
 import { compare, metricSummaries, type MetricSummary } from '@/lib/family';
 import { fmtNum, timeAgo } from '@/lib/format';
 import { dailyStats, streaks, type InsightData } from '@/lib/insights';
-import type { LinkedPerson } from '@/lib/api';
+import { useLoad, type LinkedPerson } from '@/lib/api';
+import { listAssessments, type Assessment } from '@/lib/assessments';
 import { usePerson } from '@/lib/person';
 import { addDays, mean } from '@/lib/stats';
 import { accents, useTheme } from '@/lib/theme';
@@ -29,6 +31,7 @@ export function FamilyHealth() {
   const days = Number(period);
   // Twice the period, so each metric can be compared with the period before.
   const { data, error, loading } = useInsightData(person, Math.max(days * 2, 14));
+  const scales = useLoad(async () => (person ? listAssessments(person.id) : []), [person?.id]);
 
   if (peopleLoading) return <Loading />;
   if (!person) {
@@ -70,7 +73,7 @@ export function FamilyHealth() {
       {loading && !data ? <Caption>Cargando…</Caption> : null}
       {data && section === 'vitals' ? <VitalsSection data={data} days={days} person={person} /> : null}
       {data && section === 'meds' ? <MedsSection data={data} days={days} /> : null}
-      {data && section === 'wellbeing' ? <WellbeingSection data={data} days={days} person={person} /> : null}
+      {data && section === 'wellbeing' ? <WellbeingSection data={data} days={days} person={person} assessments={scales.data ?? []} /> : null}
       <DisclaimerText />
     </Screen>
   );
@@ -145,7 +148,7 @@ function VitalsSection({ data, days, person }: { data: InsightData; days: number
   );
 }
 
-function WellbeingSection({ data, days, person }: { data: InsightData; days: number; person: LinkedPerson }) {
+function WellbeingSection({ data, days, person, assessments }: { data: InsightData; days: number; person: LinkedPerson; assessments: Assessment[] }) {
   const t = useTheme();
   const all = dailyStats(data, Math.max(days, 14));
   const stats = all.slice(-days);
@@ -154,12 +157,12 @@ function WellbeingSection({ data, days, person }: { data: InsightData; days: num
   const checkIns = data.checkIns.filter((c) => Date.parse(c.recorded_at) >= since);
   const label = (d: Date) => (days === 7 ? ['D', 'L', 'M', 'X', 'J', 'V', 'S'][d.getDay()] : String(d.getDate()));
   const avg = (vals: (number | null)[]) => mean(vals.filter((v): v is number => v != null));
-  const wb = avg(stats.map((d) => d.wellbeing));
   const sleep = avg(stats.map((d) => d.sleepHours));
   const comparisons = compare(dailyStats(data, days * 2), days, person.fluid_goal_ml);
 
   return (
     <>
+      <ScalesHistory assessments={assessments} />
       <ChartCard icon="compare-horizontal" color={accents.wellbeing} title="Frente al periodo anterior">
         {comparisons.map((c) => (
           <View key={c.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 36 }}>
@@ -178,10 +181,6 @@ function WellbeingSection({ data, days, person }: { data: InsightData; days: num
         <StreakTile label="Objetivo de líquidos" current={st.hydration.current} best={st.hydration.best} color={accents.fluids} />
         <StreakTile label="Revisiones diarias" current={st.checkIn.current} best={st.checkIn.best} color={accents.meals} />
       </View>
-      <ChartCard icon="emoticon-happy-outline" color={accents.wellbeing} title="Bienestar" summary={wb == null ? 'Sin datos' : `Media ${Math.round(wb)}`}>
-        <BarChart bars={stats.map((d) => ({ label: label(d.day), value: d.wellbeing }))} color={accents.wellbeing} max={100} />
-        <Caption>0–100, según apetito, movilidad, ánimo y confusión en cada revisión.</Caption>
-      </ChartCard>
       {checkIns.length > 1 ? (
         <ChartCard icon="chart-line" color={accents.wellbeing} title="Apetito, movilidad y ánimo">
           <LineChart

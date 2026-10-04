@@ -1,6 +1,6 @@
 import type { CheckInRow, DoseRow, EntryRow, EventRow, MealRow, Medication, SleepRow } from './api';
 import { fmtNum, fmtShortDate, plural } from './format';
-import { addDays, dayKey, isSameDay, mean, startOfDay, wellbeingScore } from './stats';
+import { addDays, dayKey, isSameDay, mean, startOfDay } from './stats';
 import type { IconName, Level, VitalsRow } from './vitals';
 import { METRICS, METRIC_ORDER, formatReading, readingsFor } from './vitals';
 
@@ -29,7 +29,6 @@ export type DayStats = {
   fluidsMl: number;
   mainMeals: number;
   sleepHours: number | null;
-  wellbeing: number | null;
 };
 
 const byDay = <T extends { recorded_at: string }>(rows: T[]) => {
@@ -58,7 +57,6 @@ export function dailyStats(data: InsightData, days: number, now = new Date()): D
     const k = dayKey(day);
     const today = isSameDay(day, now);
     const dayMeals = meals.get(k) ?? [];
-    const scores = (checkIns.get(k) ?? []).map(wellbeingScore).filter((s): s is number => s != null);
     const hours = (sleep.get(k) ?? []).map((s) => s.details.hours).filter((h): h is number => typeof h === 'number');
     return {
       day,
@@ -74,7 +72,6 @@ export function dailyStats(data: InsightData, days: number, now = new Date()): D
           .map((m) => m.meal_type),
       ).size,
       sleepHours: hours.length ? Math.max(...hours) : null,
-      wellbeing: scores.length ? Math.round(mean(scores)!) : null,
     };
   });
 }
@@ -234,17 +231,7 @@ export function buildWarnings(data: InsightData, now = new Date()): Warning[] {
     }
   }
 
-  // Wellbeing trend and confusion.
-  const recent = mean(days.slice(-3).map((d) => d.wellbeing).filter((v): v is number => v != null));
-  const before = mean(days.slice(0, -3).map((d) => d.wellbeing).filter((v): v is number => v != null));
-  if (recent != null && before != null && before - recent >= 15) {
-    w.push({
-      level: 'watch',
-      icon: 'trending-down',
-      title: 'El bienestar ha bajado',
-      detail: `Media de los últimos 3 días: ${Math.round(recent)} (antes ${Math.round(before)})`,
-    });
-  }
+  // Confusion.
   const lastCheckIn = data.checkIns[data.checkIns.length - 1];
   if (lastCheckIn && (lastCheckIn.confusion ?? 0) >= 2 && Date.parse(lastCheckIn.recorded_at) >= addDays(now, -2).getTime()) {
     w.push({ level: 'watch', icon: 'head-question-outline', title: 'Más confusión de lo habitual en la última revisión' });

@@ -5,7 +5,7 @@ import type { LinkedPerson } from '@/lib/api';
 import { describePerson } from '@/lib/api';
 import { cap, fmtNum, timeAgo } from '@/lib/format';
 import type { Warning } from '@/lib/insights';
-import { addDays, isSameDay, scoreLabel, type DaySummary } from '@/lib/stats';
+import { addDays, isSameDay, type DaySummary } from '@/lib/stats';
 import { accents, useTheme } from '@/lib/theme';
 import { formatReading, type Metric, type Reading } from '@/lib/vitals';
 
@@ -93,34 +93,11 @@ export function WeekStrip({ selected, onSelect }: { selected: Date; onSelect: (d
 }
 
 /** Wellbeing score ring plus medication, fluid and meal rings for the day. */
+/** Today at a glance: medication, fluids and meals, plus whether the visit check-in is done. */
 export function DayHero({ summary, fluidGoal, onCheckIn }: { summary: DaySummary; fluidGoal: number; onCheckIn?: () => void }) {
   const t = useTheme();
-  const score = summary.wellbeing;
   return (
-    <Card style={{ gap: 18, paddingVertical: 20 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-        <Ring progress={(score ?? 0) / 100} color={accents.wellbeing} size={112} stroke={12}>
-          <Text style={{ fontSize: 34, fontWeight: '800', color: t.text }}>{score ?? '–'}</Text>
-        </Ring>
-        <View style={{ flex: 1, gap: 4 }}>
-          <Caption>Bienestar</Caption>
-          <Text style={{ fontSize: 22, fontWeight: '800', color: t.text }}>
-            {score == null ? 'Sin revisión todavía' : scoreLabel(score)}
-          </Text>
-          <Caption>
-            {score == null
-              ? onCheckIn
-                ? 'Haz una revisión rápida para ver la puntuación de hoy.'
-                : 'Aparece cuando el cuidador hace la revisión.'
-              : 'Según apetito, movilidad, ánimo y confusión en la última revisión.'}
-          </Caption>
-          {score == null && onCheckIn ? (
-            <Pressable onPress={onCheckIn} accessibilityRole="button" style={{ paddingVertical: 6 }}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: t.primary }}>Hacer revisión →</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
+    <Card style={{ gap: 14, paddingVertical: 18 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
         <MiniRing
           label="Medicación"
@@ -135,6 +112,14 @@ export function DayHero({ summary, fluidGoal, onCheckIn }: { summary: DaySummary
           color={accents.fluids}
         />
         <MiniRing label="Comidas" value={`${summary.mainMeals}/3`} progress={summary.mainMeals / 3} color={accents.meals} />
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        <Caption>{summary.checkedIn ? '✓ Revisión de la visita hecha' : 'Aún sin revisión de la visita'}</Caption>
+        {!summary.checkedIn && onCheckIn ? (
+          <Pressable onPress={onCheckIn} accessibilityRole="button" hitSlop={8}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: t.primary }}>Hacer ahora →</Text>
+          </Pressable>
+        ) : null}
       </View>
     </Card>
   );

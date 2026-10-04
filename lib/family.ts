@@ -58,7 +58,6 @@ export function compare(days: DayStats[], period: number, fluidGoal: number): Co
   };
   const logged = (d: DayStats) => (d.entries ? d : null);
   return [
-    { label: 'Bienestar', now: avg(now, (d) => d.wellbeing), before: avg(before, (d) => d.wellbeing), unit: '', decimals: 0, higherIsBetter: true },
     { label: 'Medicación', now: adherence(now), before: adherence(before), unit: ' %', decimals: 0, higherIsBetter: true },
     { label: 'Líquidos', now: avg(now, (d) => logged(d) && d.fluidsMl / 1000), before: avg(before, (d) => logged(d) && d.fluidsMl / 1000), unit: ' L', decimals: 1, higherIsBetter: true },
     { label: 'Sueño', now: avg(now, (d) => d.sleepHours), before: avg(before, (d) => d.sleepHours), unit: ' h', decimals: 1, higherIsBetter: true },

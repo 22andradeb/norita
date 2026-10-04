@@ -1,10 +1,11 @@
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { Body, Button, Loading, Screen, Title } from '@/components/ui';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { useOutboxAutoFlush } from '@/lib/outbox';
-import { PersonProvider } from '@/lib/person';
+import { usePushNotifications } from '@/lib/notifications';
+import { PersonProvider, usePerson } from '@/lib/person';
 import { useTheme } from '@/lib/theme';
 
 export default function RootLayout() {
@@ -50,6 +51,7 @@ function RootNavigator() {
   // the first available screen — index — which redirects to wherever they now belong.
   return (
     <PersonProvider key={session?.user.id ?? 'signed-out'}>
+      <PushBridge userId={ready ? session?.user.id : undefined} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg } }}>
         <Stack.Screen name="index" />
         <Stack.Protected guard={!session}>
@@ -63,6 +65,8 @@ function RootNavigator() {
           <Stack.Screen name="people" options={{ ...modal, title: 'Personas' }} />
           <Stack.Screen name="join" options={{ ...modal, title: 'Unirse con un código' }} />
           <Stack.Screen name="appointment" options={{ ...modal, title: 'Cita' }} />
+          <Stack.Screen name="assessment/[instrument]" options={{ ...modal, title: '' }} />
+          <Stack.Screen name="alerts" options={{ ...modal, presentation: 'card', title: 'Avisos' }} />
           <Stack.Screen name="exam-new" options={{ ...modal, title: 'Subir examen' }} />
           <Stack.Screen name="exam/[id]" options={{ ...modal, presentation: 'card', title: '' }} />
           <Stack.Screen name="metric/[key]" options={{ ...modal, presentation: 'card', title: '' }} />
@@ -75,4 +79,14 @@ function RootNavigator() {
       </Stack>
     </PersonProvider>
   );
+}
+
+/** Registers for push once signed in, and opens the alerts of the right person when a notification is tapped. */
+function PushBridge({ userId }: { userId: string | undefined }) {
+  const { select } = usePerson();
+  usePushNotifications(userId, (olderAdultId) => {
+    if (olderAdultId) select(olderAdultId);
+    router.push('/alerts');
+  });
+  return null;
 }

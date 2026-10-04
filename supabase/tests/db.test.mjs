@@ -166,6 +166,101 @@ ok('outsider cannot read the file', (await as(O, `select * from storage.objects`
 ok('outsider cannot store files in the person folder', !!(await fails(O, `insert into storage.objects (bucket_id, name) values ('medical-documents', $1)`, [`${oa}/z.pdf`])));
 ok('malformed paths are denied, not errors', !!(await fails(F, `insert into storage.objects (bucket_id, name) values ('medical-documents', 'not-a-uuid/z.pdf')`)));
 
+console.log('alerts: raised by new entries');
+const alertsFor = async (uid, person = oa) =>
+  (await as(uid, `select id, kind, level, title, detail, created_by from alerts where older_adult_id = $1 order by created_at`, [person])).rows;
+let al = await alertsFor(F);
+ok('earlier fall raised an alert', al.some((a) => a.kind === 'fall' && a.level === 'alert'), al);
+ok('earlier refused dose raised a watch', al.some((a) => a.kind === 'missed_dose' && a.title === 'Toma rechazada: Paracetamol'), al);
+await ins(C, 'vitals', { ...base(), spo2: 88 });
+await ins(C, 'vitals', { ...base(), temperature_c: 38.2 });
+al = await alertsFor(F);
+ok('low oxygen is an alert', al.some((a) => a.title === 'Oxígeno bajo' && a.level === 'alert'), al.map((a) => a.title));
+ok('fever is a watch with Spanish decimals', al.some((a) => a.title === 'Temperatura fiebre' && a.detail === '38,2 °C'), al.map((a) => `${a.title} | ${a.detail}`));
+for (let i = 1; i <= 6; i++) {
+  await ins(C, 'vitals', { ...base(), recorded_at: new Date(Date.now() - i * 86_400_000).toISOString(), heart_rate: 70 + (i % 3) });
+}
+ok('normal readings raise nothing', !(await alertsFor(F)).some((a) => a.kind === 'vital_unusual'));
+await ins(C, 'vitals', { ...base(), heart_rate: 95 });
+al = await alertsFor(F);
+ok('heart rate unusual for this person (in general range)', al.some((a) => a.kind === 'vital_unusual' && a.title === 'Pulso más alto de lo habitual'), al.map((a) => `${a.title} | ${a.detail}`));
+await ins(C, 'check_ins', { ...base(), confusion: 3 });
+ok('severe confusion raises a watch', (await alertsFor(F)).some((a) => a.kind === 'confusion'));
+await db.query(`update medical_documents set status = 'ready', title = 'Hemograma', results = '[{"name":"Hb","flag":"low"},{"name":"Plaquetas","flag":"normal"}]' where id = $1`, [docId]);
+ok('exam with abnormal values raises a watch', (await alertsFor(F)).some((a) => a.kind === 'exam_abnormal' && a.title === 'Examen con 1 valor fuera de rango'));
+ok('users cannot create alerts', !!(await fails(C, `insert into alerts (older_adult_id, kind, level, title, dedupe_key) values ($1, 'x', 'alert', 'x', 'x')`, [oa])));
+
+console.log('alerts: periodic checks');
+const oa2 = (await as(C, `select create_older_adult('Abuelo', 1938, 'male') id`)).rows[0].id;
+await ins(C, 'meals', { id: randomUUID(), older_adult_id: oa2, recorded_by: C, recorded_at: new Date(Date.now() - 2 * 86_400_000).toISOString(), meal_type: 'lunch', amount_eaten: 'all' });
+const med2 = randomUUID();
+await ins(C, 'medications', { id: med2, older_adult_id: oa2, created_by: C, name: 'Enalapril', times: ['08:00'], stock_unit: 'comprimidos', low_stock_threshold: 5 });
+await as(C, `insert into appointments (older_adult_id, title, starts_at, created_by, needs_companion)
+              values ($1, 'Cardiología', ((current_date + 1)::timestamp + time '10:00') at time zone 'Europe/Madrid', $2, true)`, [oa2, C]);
+const evening = `((current_date)::timestamp + time '21:00') at time zone 'Europe/Madrid'`;
+await db.query(`select check_scheduled_alerts(${evening})`);
+await db.query(`select check_scheduled_alerts(${evening})`); // second run must not duplicate
+const al2 = await alertsFor(C, oa2);
+const titles = al2.map((a) => a.title);
+ok('evening with nothing logged is an alert', al2.some((a) => a.kind === 'no_entries' && a.level === 'alert'), titles);
+ok('unlogged 08:00 dose', titles.includes('Toma sin registrar: Enalapril'), titles);
+ok('low stock (0 left, threshold 5)', titles.includes('Quedan pocas existencias de Enalapril'), titles);
+ok('reminder for tomorrow\'s appointment', titles.includes('Mañana: Cardiología a las 10:00'), titles);
+ok('periodic checks do not duplicate', new Set(titles).size === titles.length, titles);
+ok('checks are not callable by users', !!(await fails(C, `select check_scheduled_alerts()`)));
+
+console.log('alerts: acknowledging and delivery');
+const fall = (await alertsFor(F)).find((a) => a.kind === 'fall');
+ok('family can mark an alert as seen', (await as(F, `update alerts set acknowledged_by = $2, acknowledged_at = now(), ack_note = 'Llamo al médico' where id = $1 returning id`, [fall.id, F])).rows.length === 1);
+ok('cannot acknowledge in someone else\'s name', !!(await fails(F, `update alerts set acknowledged_by = $2 where id = $1`, [fall.id, C])));
+ok('feed shows who acknowledged', (await as(C, `select acknowledged_by_name from alert_feed where id = $1`, [fall.id])).rows[0].acknowledged_by_name === 'Fam');
+await as(C, `select register_push_token('ExponentPushToken[carla]', 'ios')`);
+await as(F, `select register_push_token('ExponentPushToken[fam]', 'ios')`);
+ok('fall goes to family, not to the caregiver who logged it', JSON.stringify((await db.query(`select token from alert_recipients($1)`, [fall.id])).rows.map((r) => r.token)) === JSON.stringify(['ExponentPushToken[fam]']));
+const watch = (await alertsFor(F)).find((a) => a.kind === 'vital_unusual');
+ok('"important only" users skip watch-level alerts', (await db.query(`select token from alert_recipients($1)`, [watch.id])).rows.length === 0);
+await as(F, `update profiles set notify_level = 'all' where id = $1`, [F]);
+ok('"all" users get watch-level alerts', (await db.query(`select token from alert_recipients($1)`, [watch.id])).rows.length === 1);
+const claimed = (await db.query(`select * from claim_pending_alerts(500)`)).rows.length;
+ok('pending alerts are claimed once', claimed > 0 && (await db.query(`select * from claim_pending_alerts(500)`)).rows.length === 0, claimed);
+ok('users cannot claim alerts', !!(await fails(F, `select claim_pending_alerts()`)));
+await as(O, `select register_push_token('ExponentPushToken[fam]', 'ios')`);
+ok('a device that changes account moves to the new user', (await db.query(`select user_id from push_tokens where token = 'ExponentPushToken[fam]'`)).rows[0].user_id === O);
+ok('users only see their own devices', (await as(C, `select * from push_tokens`)).rows.length === 1);
+
+console.log('validated scales');
+const assess = (uid, instrument, answers, daysAgo = 0) =>
+  as(uid, `insert into assessments (id, older_adult_id, recorded_by, recorded_at, instrument, answers, score, category)
+            values ($1, $2, $3, now() - make_interval(days => $4), $5, $6, 0, 'x') returning score, category`,
+     [randomUUID(), oa, uid, daysAgo, instrument, JSON.stringify(answers)]).then((r) => r.rows[0]);
+let r1 = await assess(F, 'who5', [4, 4, 3, 4, 4], 20);
+ok('WHO-5 is scored as sum × 4 (family can record it)', r1.score === 76 && r1.category === 'good', r1);
+r1 = await assess(C, 'who5', [2, 2, 2, 3, 3]);
+ok('WHO-5 of 48 is "low"', r1.score === 48 && r1.category === 'low', r1);
+al = await alertsFor(F);
+ok('low WHO-5 raises a watch', al.some((a) => a.kind === 'who5_low' && a.level === 'watch' && a.title === 'Bienestar bajo (WHO-5: 48)'), al.map((a) => a.title));
+ok('a 28-point drop is flagged', al.some((a) => a.kind === 'who5_drop' && a.detail === 'WHO-5: 48 (antes 76)'));
+r1 = await assess(C, 'who5', [1, 1, 1, 2, 2]);
+ok('WHO-5 of 28 is "very low" and an alert', r1.score === 28 && (await alertsFor(F)).some((a) => a.title === 'Bienestar muy bajo (WHO-5: 28)' && a.level === 'alert'));
+ok('the client cannot fake a score', (await assess(C, 'who5', [0, 0, 0, 0, 0])).score === 0);
+ok('WHO-5 needs exactly 5 answers 0-5', !!(await assess(C, 'who5', [5, 5, 5, 5]).then(() => null, (e) => e.message)) && !!(await assess(C, 'who5', [6, 5, 5, 5, 5]).then(() => null, (e) => e.message)));
+const frail = (fatigue, resistance, ambulation, illnesses, weight_loss) => ({ fatigue, resistance, ambulation, illnesses, weight_loss });
+r1 = await assess(F, 'frail', frail('some', true, false, ['hypertension', 'diabetes'], false), 40);
+ok('FRAIL 1/5 is prefrail', r1.score === 1 && r1.category === 'prefrail', r1);
+ok('a first positive FRAIL screen (>= 1) raises a watch', (await alertsFor(C)).some((a) => a.kind === 'frailty_screen' && a.title === 'Cribado de fragilidad positivo (FRAIL 1/5)'));
+r1 = await assess(F, 'frail', frail('most', true, true, ['hypertension', 'diabetes', 'arthritis', 'kidney', 'lung'], false));
+ok('FRAIL counts fatigue "most" and 5+ illnesses', r1.score === 4 && r1.category === 'frail', r1);
+ok('worsening frailty raises a watch', (await alertsFor(C)).some((a) => a.kind === 'frailty_worse' && a.title === 'Fragilidad: ahora frágil'));
+ok('unknown illness is rejected', !!(await assess(F, 'frail', frail('none', false, false, ['flu'], false)).then(() => null, (e) => e.message)));
+ok('outsider cannot record an assessment', !!(await assess(O, 'who5', [3, 3, 3, 3, 3]).then(() => null, (e) => e.message)));
+ok('assessments appear in the timeline', (await as(F, `select data->>'instrument' i from activity where kind = 'assessment'`)).rows.length === 6);
+const remindersBefore = (await alertsFor(C)).filter((a) => a.kind === 'who5_due').length;
+await db.query(`select check_scheduled_alerts(${evening})`);
+const due = (await alertsFor(C, oa2)).map((a) => a.kind);
+ok('reminders when WHO-5 and FRAIL are due', due.includes('who5_due') && due.includes('frail_due'), due);
+ok('no new reminder once recently assessed', (await alertsFor(C)).filter((a) => a.kind === 'who5_due').length === remindersBefore);
+ok('old composite wellbeing check is gone', !(await db.query(`select 1 from pg_proc where proname = 'wellbeing_score'`)).rows.length);
+
 console.log('protections');
 ok('cannot change own role', !!(await fails(C, `update profiles set role = 'family' where id = $1`, [C])));
 ok('can record consent', (await as(C, `update profiles set consented_at = now(), consent_version = 'x' where id = $1 returning id`, [C])).rows.length === 1);

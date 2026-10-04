@@ -3,14 +3,18 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { FamilyToday } from '@/components/family/FamilyToday';
+import { AlertsCard } from '@/components/AlertsCard';
 import { NextAppointmentCard } from '@/components/appointments';
 import { ActivityList, SyncBanner } from '@/components/care';
+import { ScalesCard } from '@/components/scales';
 import { Button, Caption, Card, EmptyState, ErrorText, Fab, Heading, Loading, Screen } from '@/components/ui';
 import { VisitCard } from '@/components/VisitCard';
-import { DayHero, Grid, MetricWidget, PersonHeader, StreakTile, WarningList, WeekStrip, dayTitle } from '@/components/widgets';
+import { DayHero, Grid, MetricWidget, PersonHeader, StreakTile, WeekStrip, dayTitle } from '@/components/widgets';
+import { listAlerts, openAlerts } from '@/lib/alerts';
 import { api, useLoad } from '@/lib/api';
+import { listAssessments } from '@/lib/assessments';
 import { useAuth } from '@/lib/auth';
-import { buildWarnings, dailyStats, streaks } from '@/lib/insights';
+import { dailyStats, streaks } from '@/lib/insights';
 import { useOutbox } from '@/lib/outbox';
 import { usePerson } from '@/lib/person';
 import { recordDose, recordVisit } from '@/lib/quickLog';
@@ -43,8 +47,10 @@ function Today() {
     ]);
     return { items, meds, vitals, next };
   }, [pid, day.getTime(), lastSyncedAt]);
-  // Two weeks of history for warnings and streaks.
+  // Two weeks of history for streaks.
   const insight = useInsightData(person, 14);
+  const alertFeed = useLoad(async () => (pid ? listAlerts(pid, 14) : []), [pid, lastSyncedAt]);
+  const scales = useLoad(async () => (pid ? listAssessments(pid) : []), [pid, lastSyncedAt]);
 
   if (peopleLoading) return <Loading />;
 
@@ -77,7 +83,6 @@ function Today() {
   const slots = data ? doseSlots(data.meds, data.items) : [];
   const summary = summarizeDay(data?.items ?? [], slots);
   const upcoming = isToday && canLog ? nextDose(slots) : null;
-  const warnings = insight.data ? buildWarnings(insight.data) : [];
   const days = insight.data ? dailyStats(insight.data, 14) : [];
   const s = streaks(days, person.fluid_goal_ml);
 
@@ -105,6 +110,7 @@ function Today() {
         />
       ) : null}
 
+      {isToday ? <ScalesCard assessments={scales.data ?? []} /> : null}
       <DayHero summary={summary} fluidGoal={person.fluid_goal_ml} onCheckIn={canLog ? () => openLog('checkin') : undefined} />
 
       {upcoming && session ? (
@@ -122,18 +128,8 @@ function Today() {
         </Card>
       ) : null}
 
-      <Heading
-        action={
-          warnings.length > 3 ? (
-            <Text onPress={() => router.navigate('/home/trends')} style={{ color: t.primary, fontSize: 16, fontWeight: '700' }}>
-              Ver los {warnings.length}
-            </Text>
-          ) : undefined
-        }
-      >
-        Avisos
-      </Heading>
-      {insight.data ? <WarningList warnings={warnings} limit={3} /> : <Caption>Cargando avisos…</Caption>}
+      <Heading>Avisos</Heading>
+      {alertFeed.data ? <AlertsCard open={openAlerts(alertFeed.data)} onChanged={alertFeed.reload} /> : <Caption>Cargando avisos…</Caption>}
 
       <Heading
         action={

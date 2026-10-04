@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Share, Text, View } from 'react-native';
 
+import { NotificationSettings } from '@/components/NotificationSettings';
 import { Body, Button, Caption, Card, Chip, EmptyState, ErrorText, Heading, Row, Screen, StatusPill } from '@/components/ui';
 import { Avatar, PersonHeader } from '@/components/widgets';
 import { api, useLoad } from '@/lib/api';
@@ -85,6 +86,9 @@ export default function Team() {
           ) : null}
         </>
       ) : null}
+
+      <Heading>Notificaciones</Heading>
+      <NotificationSettings />
 
       <Heading>Tu cuenta</Heading>
       <Card>

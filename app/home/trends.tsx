@@ -3,9 +3,12 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { FamilyHealth } from '@/components/family/FamilyHealth';
+import { ScalesHistory } from '@/components/scales';
 import { BarChart, CoverageCalendar, HBars, Legend, LineChart } from '@/components/charts';
 import { Caption, EmptyState, ErrorText, Heading, Loading, Screen, Segmented } from '@/components/ui';
 import { ChartCard, PersonHeader, StatTile, StreakTile, WarningList } from '@/components/widgets';
+import { useLoad } from '@/lib/api';
+import { latestOf, listAssessments } from '@/lib/assessments';
 import { useAuth } from '@/lib/auth';
 import { fmtNum } from '@/lib/format';
 import { adherence, buildWarnings, categoryCounts, dailyStats, entriesByHour, streaks, timeInRange } from '@/lib/insights';
@@ -32,6 +35,7 @@ function Analysis() {
   const days = Number(period);
   // Warnings and streaks need at least two weeks of history, whatever the period shown.
   const { data, error, loading } = useInsightData(person, Math.max(days, 14));
+  const scales = useLoad(async () => (person ? listAssessments(person.id) : []), [person?.id]);
 
   if (peopleLoading) return <Loading />;
   if (!person) {
@@ -54,7 +58,7 @@ function Analysis() {
 
   const avg = (vals: (number | null)[]) => mean(vals.filter((v): v is number => v != null));
   const meds = adherence(stats);
-  const wellbeingAvg = avg(stats.map((d) => d.wellbeing));
+  const lastWho5 = latestOf(scales.data ?? [], 'who5');
   const fluidsAvg = avg(stats.map((d) => (d.entries ? d.fluidsMl : null)));
   const sleepAvg = avg(stats.map((d) => d.sleepHours));
   const loggedDays = stats.filter((d) => d.entries > 0).length;
@@ -91,7 +95,7 @@ function Analysis() {
       <View style={{ gap: 12 }}>
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <StatTile icon="pill" color={accents.meds} label="Adherencia" value={meds == null ? '—' : `${meds} %`} />
-          <StatTile icon="emoticon-happy-outline" color={accents.wellbeing} label="Bienestar medio" value={wellbeingAvg == null ? '—' : String(Math.round(wellbeingAvg))} />
+          <StatTile icon="emoticon-happy-outline" color={accents.wellbeing} label="Último WHO-5" value={lastWho5 ? String(lastWho5.score) : '—'} />
         </View>
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <StatTile icon="cup-water" color={accents.fluids} label="Líquidos al día" value={fluidsAvg == null ? '—' : `${fmtNum(fluidsAvg / 1000, 1)} L`} />
@@ -137,11 +141,12 @@ function Analysis() {
         <Caption>Porcentaje de tomas programadas registradas como tomadas cada día.</Caption>
       </ChartCard>
 
-      <ChartCard icon="emoticon-happy-outline" color={accents.wellbeing} title="Bienestar" summary={wellbeingAvg == null ? 'Sin datos' : `Media ${Math.round(wellbeingAvg)}`}>
-        <BarChart bars={stats.map((d) => ({ label: label(d.day), value: d.wellbeing }))} color={accents.wellbeing} max={100} />
+      <Heading>Bienestar y fragilidad</Heading>
+      <ScalesHistory assessments={scales.data ?? []} />
+      <ChartCard icon="chart-line" color={accents.wellbeing} title="Revisiones diarias">
         {checkIns.length > 1 ? (
           <>
-            <Caption>Apetito, movilidad y ánimo (1 = muy mal, 5 = muy bien)</Caption>
+            <Caption>Apetito, movilidad y ánimo según las revisiones (1 = muy mal, 5 = muy bien)</Caption>
             <LineChart
               series={[
                 { points: checkIns.filter((c) => c.appetite != null).map((c) => ({ t: Date.parse(c.recorded_at), v: c.appetite! })), color: accents.meals },
@@ -160,7 +165,9 @@ function Analysis() {
               ]}
             />
           </>
-        ) : null}
+        ) : (
+          <Caption>Aún no hay suficientes revisiones en este periodo.</Caption>
+        )}
       </ChartCard>
 
       <Heading>Constantes vitales</Heading>

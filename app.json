@@ -31,10 +31,18 @@
           "cameraPermission": "Norita usa la cámara para fotografiar los resultados de exámenes médicos.",
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2c981169-6245-4548-b404-3489bc126932"
+      }
+    },
+    "owner": "22andradeb"
   }
 }

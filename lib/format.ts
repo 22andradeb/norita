@@ -40,6 +40,7 @@ const ERRORS: [RegExp, string][] = [
   [/password should be at least/i, 'La contraseña es demasiado corta.'],
   [/unable to validate email|invalid email/i, 'El correo no es válido.'],
   [/rate limit|too many requests/i, 'Demasiados intentos. Espera un momento y vuelve a probar.'],
+  [/schema cache|could not find the table|relation .* does not exist/i, 'La base de datos no está actualizada: falta ejecutar una migración en Supabase.'],
   [/only caregivers can add a person/i, 'Solo los cuidadores pueden añadir personas.'],
   [/only this person's caregivers can create an invite/i, 'Solo los cuidadores de esta persona pueden crear invitaciones.'],
   [/not valid or has expired/i, 'Este código no es válido o ha caducado.'],

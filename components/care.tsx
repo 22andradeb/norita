@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import type { ActivityItem, Medication } from '@/lib/api';
+import { readFrail, readWho5 } from '@/lib/assessments';
 import { EVENT_CATEGORIES, FIELDS_BY_ACTIVITY, describe, type EventCategory, type LogKindKey } from '@/lib/logKinds';
 import { fmtNum, fmtTime, fmtWhen, translateError } from '@/lib/format';
 import { LOG_STYLE } from '@/lib/logStyle';
-import { discardFailed, useOutbox } from '@/lib/outbox';
+import { useAuth } from '@/lib/auth';
+import { discardFailed, retryFailed, useOutbox } from '@/lib/outbox';
 import type { DoseSlot } from '@/lib/stats';
 import { accents, useTheme } from '@/lib/theme';
 import type { IconName } from '@/lib/vitals';
@@ -78,6 +80,18 @@ function describeActivity(item: ActivityItem): Described {
         lines: [],
       };
     }
+    case 'assessment': {
+      const who5 = d.instrument === 'who5';
+      const score = d.score as number;
+      const reading = who5 ? readWho5(score) : readFrail(score);
+      return {
+        styleKey: 'other',
+        style: { icon: who5 ? 'emoticon-happy-outline' : 'human-cane', color: accents.wellbeing },
+        title: who5 ? `Valoración WHO-5: ${score}` : `Valoración FRAIL: ${score}/5`,
+        lines: [reading.label],
+        tone: reading.level === 'alert' ? 'danger' : reading.level === 'watch' ? 'warning' : undefined,
+      };
+    }
     case 'stock_change': {
       const delta = d.delta as number;
       const verb = d.reason === 'refill' ? 'Reposición' : d.reason === 'initial' ? 'Existencias iniciales' : 'Retirado';
@@ -87,6 +101,10 @@ function describeActivity(item: ActivityItem): Described {
         lines: [`${verb}: ${delta > 0 ? '+' : ''}${delta} ${d.stock_unit}`],
       };
     }
+    default:
+      // A kind added on the server that this version of the app doesn't know yet.
+      console.warn('Unknown activity kind', (item as { kind: string }).kind);
+      return { styleKey: 'other', title: 'Registro', lines: [] };
   }
 }
 
@@ -267,6 +285,7 @@ export function MedicationCard({
 /** Tells the caregiver when entries are still on the phone or were rejected by the server. */
 export function SyncBanner() {
   const { pending, failed } = useOutbox();
+  const { session } = useAuth();
   if (pending === 0 && failed.length === 0) return null;
   return (
     <View style={{ gap: 12 }}>
@@ -283,7 +302,14 @@ export function SyncBanner() {
           <Body>
             {failed.length === 1 ? 'No se pudo guardar 1 registro' : `No se pudieron guardar ${failed.length} registros`}: {translateError(failed[0].error ?? '')}
           </Body>
-          <Button title="Descartar" variant="secondary" onPress={() => void discardFailed()} compact />
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Button title="Reintentar" onPress={() => session && void retryFailed(session.user.id)} compact />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button title="Descartar" variant="secondary" onPress={() => void discardFailed()} compact />
+            </View>
+          </View>
         </Card>
       ) : null}
     </View>

@@ -1,6 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useState, type PropsWithChildren } from 'react';
 
+import { forgetPushToken } from './notifications';
 import { supabase } from './supabase';
 
 export type Role = 'caregiver' | 'family';
@@ -14,6 +15,7 @@ export type Profile = {
   full_name: string;
   consented_at: string | null;
   consent_version: string | null;
+  notify_level: 'important' | 'all' | 'none';
 };
 
 type AuthState = {
@@ -39,7 +41,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, role, full_name, consented_at, consent_version')
+      .select('id, role, full_name, consented_at, consent_version, notify_level')
       .eq('id', userId)
       .single();
     if (error) console.warn('Failed to load profile', error.message);
@@ -75,6 +77,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     hasCurrentConsent: !!profile?.consented_at && profile.consent_version === CONSENT_VERSION,
     refreshProfile: () => loadProfile(session?.user.id),
     signOut: async () => {
+      await forgetPushToken().catch(() => {});
       await supabase.auth.signOut();
     },
   };

@@ -1,10 +1,18 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
 import { Caption, IconBadge, Screen } from '@/components/ui';
 import { LOG_STYLE, SHEET_KINDS } from '@/lib/logStyle';
 import { usePerson } from '@/lib/person';
 import { radius, useTheme } from '@/lib/theme';
+import type { IconName } from '@/lib/vitals';
+
+// Entries that open their own screens rather than a log form.
+const EXTRA_TILES: { label: string; icon: IconName; href: Href }[] = [
+  { label: 'Bienestar (WHO-5)', icon: 'emoticon-happy-outline', href: { pathname: '/assessment/[instrument]', params: { instrument: 'who5' } } },
+  { label: 'Fragilidad (FRAIL)', icon: 'human-cane', href: { pathname: '/assessment/[instrument]', params: { instrument: 'frail' } } },
+  { label: 'Examen médico', icon: 'file-document-outline', href: '/exam-new' },
+];
 
 /** The "+" sheet: every kind of entry as a tile, two taps from anywhere. */
 export default function LogSheet() {
@@ -52,26 +60,29 @@ export default function LogSheet() {
             </Pressable>
           );
         })}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Examen médico"
-          onPress={() => router.replace('/exam-new')}
-          style={({ pressed }) => ({
-            width: '30.5%',
-            aspectRatio: 1,
-            borderRadius: radius.lg,
-            backgroundColor: t.card,
-            borderWidth: 1,
-            borderColor: t.border,
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            opacity: pressed ? 0.8 : 1,
-          })}
-        >
-          <IconBadge name="file-document-outline" color={t.primary} size={46} />
-          <Text style={{ fontSize: 14, fontWeight: '700', color: t.text, textAlign: 'center' }}>Examen médico</Text>
-        </Pressable>
+        {EXTRA_TILES.map((tile) => (
+          <Pressable
+            key={tile.label}
+            accessibilityRole="button"
+            accessibilityLabel={tile.label}
+            onPress={() => router.replace(tile.href)}
+            style={({ pressed }) => ({
+              width: '30.5%',
+              aspectRatio: 1,
+              borderRadius: radius.lg,
+              backgroundColor: t.card,
+              borderWidth: 1,
+              borderColor: t.border,
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              opacity: pressed ? 0.8 : 1,
+            })}
+          >
+            <IconBadge name={tile.icon} color={t.primary} size={46} />
+            <Text style={{ fontSize: 14, fontWeight: '700', color: t.text, textAlign: 'center' }}>{tile.label}</Text>
+          </Pressable>
+        ))}
       </View>
     </Screen>
   );

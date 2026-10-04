@@ -1,4 +1,4 @@
-import type { ActivityItem, CheckInRow, Medication } from './api';
+import type { ActivityItem, Medication } from './api';
 
 // Pure calculations behind the dashboard rings, scores and charts.
 
@@ -7,21 +7,6 @@ export const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMo
 export const isSameDay = (a: Date, b: Date) => startOfDay(a).getTime() === startOfDay(b).getTime();
 export const dayKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-/** 0–100 from a check-in: appetite, mobility and mood (1–5 each), minus 10 per level of confusion. */
-export function wellbeingScore(c: Pick<CheckInRow, 'appetite' | 'mobility' | 'mood' | 'confusion'>): number | null {
-  const scales = [c.appetite, c.mobility, c.mood].filter((v): v is number => v != null);
-  if (scales.length === 0) return null;
-  const avg = scales.reduce((a, b) => a + b, 0) / scales.length; // 1..5
-  const base = ((avg - 1) / 4) * 100;
-  return Math.max(0, Math.min(100, Math.round(base - (c.confusion ?? 0) * 10)));
-}
-
-export function scoreLabel(score: number) {
-  if (score >= 75) return 'Bien';
-  if (score >= 50) return 'Regular';
-  return 'Bajo';
-}
 
 export type DoseSlot = {
   medication: Medication;
@@ -61,14 +46,12 @@ export type DaySummary = {
   dosesScheduled: number;
   fluidsMl: number;
   mainMeals: number;
-  wellbeing: number | null;
   checkedIn: boolean;
 };
 
 export function summarizeDay(dayItems: ActivityItem[], slots: DoseSlot[]): DaySummary {
   const meals = dayItems.filter((i) => i.kind === 'meal');
   const checkIns = dayItems.filter((i) => i.kind === 'check_in'); // newest first
-  const latest = checkIns[0]?.data as CheckInRow | undefined;
   const eatenMain = new Set(
     meals
       .filter((m) => ['breakfast', 'lunch', 'dinner'].includes(m.data.meal_type as string) && m.data.amount_eaten !== 'none')
@@ -79,7 +62,6 @@ export function summarizeDay(dayItems: ActivityItem[], slots: DoseSlot[]): DaySu
     dosesScheduled: slots.length,
     fluidsMl: meals.reduce((sum, m) => sum + ((m.data.fluids_ml as number) ?? 0), 0),
     mainMeals: eatenMain.size,
-    wellbeing: latest ? wellbeingScore(latest) : null,
     checkedIn: checkIns.length > 0,
   };
 }
