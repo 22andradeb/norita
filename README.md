@@ -9,21 +9,129 @@ One Expo app with two experiences: **caregiver** and **family**, chosen at sign-
 - Supabase (Postgres, auth, row-level security; edge functions later)
 - EAS Build / Submit for the App Store and Google Play
 
-## First-time setup
+## Accounts and services
 
-1. Install Node.js LTS from https://nodejs.org
-2. Install dependencies and align them with the Expo SDK:
+Everything the app needs lives in these accounts. Keep their logins in a password manager.
+
+| Service | What it's for | Notes |
+| --- | --- | --- |
+| [GitHub](https://github.com) | Source code (this private repository) | Invite collaborators in Settings → Collaborators |
+| [Supabase](https://supabase.com) | Database, logins, file storage, edge functions, scheduled jobs | Hosted in the cloud; works from any computer |
+| [Expo](https://expo.dev) | Running the app in Expo Go, push notifications, building with EAS | The project is linked in `app.json` (`extra.eas.projectId`) |
+| [Anthropic Console](https://console.anthropic.com) | Claude API, used to transcribe medical documents | Needs billing / credit to work |
+| Apple Developer / Google Play Console | Publishing to the stores (not set up yet) | See "Before a real pilot" |
+
+## Keys and secrets
+
+**Never commit real values.** `.env` is git-ignored; server secrets live in Supabase. If a key leaks,
+rotate it in the service where it was created.
+
+| Name | What it is | Where it lives | Where to get it | Secret? |
+| --- | --- | --- | --- | --- |
+| `EXPO_PUBLIC_SUPABASE_URL` | Address of the Supabase project | `.env` on each computer | Supabase → Project Settings → API (or Data API) | No |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Public key the app uses; row-level security protects the data | `.env` on each computer | Supabase → Project Settings → API Keys → `anon` / publishable | No (ships inside the app) |
+| Database password | Postgres password, only needed by `npx supabase link` | Your password manager | Set when the Supabase project was created; reset in Project Settings → Database | **Yes** |
+| `service_role` / secret key | Full-access Supabase key | Supabase only (functions get it automatically) | Supabase → API Keys | **Yes — never in the app or `.env`** |
+| `ANTHROPIC_API_KEY` | Claude API key for `transcribe-document` | Supabase Edge Function secrets | Anthropic Console → Settings → API Keys | **Yes** |
+| `CRON_SECRET` | Shared secret so the scheduled job can call `send-alerts` | Supabase Edge Function secrets **and** Vault (`norita_cron_secret`) — same value in both | Generate: `openssl rand -hex 32` | **Yes** |
+| `norita_project_url` | Project URL the scheduled job calls | Supabase Vault | `https://<project-ref>.supabase.co` | No |
+| EAS project ID | Links the app to the Expo project for push and builds | `app.json` (committed) | Created by `npx eas-cli init` | No |
+
+`SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are injected into edge functions by
+Supabase automatically; don't set them yourself.
+
+To check what's configured on the server: Supabase → Edge Functions → Secrets (should list
+`ANTHROPIC_API_KEY` and `CRON_SECRET`), and in the SQL editor
+`select name from vault.decrypted_secrets;` (should list `norita_project_url` and `norita_cron_secret`).
+
+## Run the app on a new computer
+
+The Supabase project already holds the database, users and secrets, so a new computer only needs the
+code and the `.env` file.
+
+1. Install [Node.js](https://nodejs.org) (LTS) and [Git](https://git-scm.com).
+2. Get the code and install dependencies:
    ```bash
-   npm install && npx expo install --fix
+   git clone https://github.com/22andradeb/norita.git
+   cd norita
+   npm install
    ```
-3. Create a Supabase project, then copy `.env.example` to `.env` and fill in the URL and anon key.
-4. Apply the database migrations in filename order: paste each `supabase/migrations/*.sql` into the Supabase SQL editor,
-   or use the Supabase CLI (`npx supabase init`, `npx supabase link`, then `npx supabase db push`).
-5. Run the app:
+3. Create `.env` from the template and fill in the two values from the table above:
+   ```bash
+   cp .env.example .env
+   ```
+4. Sign in to Expo (the same account must be signed in to Expo Go on the phone):
+   ```bash
+   npx expo login
+   ```
+5. Start the app and scan the QR code with Expo Go:
    ```bash
    npx expo start
    ```
-   Scan the QR code with Expo Go on your phone.
+   Keep this Terminal window open while using the app; run other commands in a second window. If the
+   phone can't connect (different Wi-Fi, university network), use `npx expo start --tunnel`.
+
+To deploy edge functions or change secrets from that computer, also sign in to Supabase once:
+
+```bash
+npx supabase login
+npx supabase link --project-ref <project-ref>
+```
+
+## Set up everything from scratch (new Supabase project)
+
+Only needed for a brand-new environment (e.g. a separate test or production project).
+
+1. **Supabase project**: create it in an EU region (health data). Note the project ref and database
+   password.
+2. **Auth**: Authentication → Sign In / Providers → Email. For testing you can turn off *Confirm email*
+   (the built-in mailer allows only a few emails per hour). Before real users, turn it back on and
+   configure your own SMTP (e.g. Resend, Brevo) and a confirmation page.
+3. **Database**: in the SQL editor, run each migration **in this order** (or `npx supabase db push`):
+   1. `20261004000000_profiles.sql`
+   2. `20261004010000_care_records.sql`
+   3. `20261005000000_dashboard_support.sql`
+   4. `20261006000000_appointments_visits.sql`
+   5. `20261007000000_medical_documents.sql`
+   6. `20261008000000_alerts.sql` — enable the **pg_cron** and **pg_net** extensions first (Database →
+      Extensions) if it complains
+   7. `20261009000000_assessments.sql`
+4. **App config**: create `.env` (see above).
+5. **Transcription of exams**: create an Anthropic API key with billing, then:
+   ```bash
+   npx supabase link --project-ref <project-ref>
+   npx supabase secrets set ANTHROPIC_API_KEY=<key>
+   npx supabase functions deploy transcribe-document
+   ```
+6. **Alerts and push notifications**:
+   ```bash
+   openssl rand -hex 32
+   npx supabase secrets set CRON_SECRET=<that value>
+   npx supabase functions deploy send-alerts --no-verify-jwt
+   npx eas-cli init
+   ```
+   Then in the SQL editor:
+   ```sql
+   select vault.create_secret('https://<project-ref>.supabase.co', 'norita_project_url');
+   select vault.create_secret('<same CRON_SECRET value>', 'norita_cron_secret');
+   ```
+7. **Check**: run `npm run test:db` locally, start the app, sign up one caregiver and one family account
+   (different emails), add a person, create an invite code and join with it.
+
+## Troubleshooting
+
+| What you see | Cause | Fix |
+| --- | --- | --- |
+| Expo Go: "You need to be signed in…" | Expo Go and Expo CLI use different accounts | `npx expo login` on the computer and sign in to Expo Go with the same account |
+| Expo Go: "Could not connect to the server" | The `npx expo start` window was closed, or phone and computer are on different networks | Start it again; or `npx expo start --tunnel` |
+| "Port 8081 is running this app in another window" | An old Expo server is still running | Answer **Y** to use another port, or close the old window |
+| "Demasiados intentos" at sign-up | Supabase's built-in mailer limit | Turn off *Confirm email* for testing, or set up SMTP |
+| "Correo o contraseña incorrectos" right after sign-up | The account was never created (often because of the mail limit) | Check Authentication → Users; sign up again |
+| Red banner "La base de datos no está actualizada…" / "Could not find the table" | A migration hasn't been run | Run the missing migration, then tap **Reintentar** |
+| Exams: "Falta configurar la clave de la API de Anthropic" | `ANTHROPIC_API_KEY` secret missing | Add it (Edge Functions → Secrets) and tap **Reintentar** |
+| Exams: "La clave … no es válida" / service errors | Wrong key or no credit | Check the key and billing in the Anthropic Console |
+| Equipo → Notificaciones: "Falta configurar el proyecto" | No EAS project ID | `npx eas-cli init`, then reload the app |
+| No push notifications arrive | Notifications go to everyone **except** whoever logged the entry; or preference is "Solo lo importante" | Test with a second phone; check Vault secrets and `CRON_SECRET`; see Edge Functions → send-alerts → Logs |
 
 ## How the app is organised
 
